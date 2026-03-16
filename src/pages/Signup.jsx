@@ -1,7 +1,8 @@
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth, db } from "../firebase";
+import { auth, db, database } from "../firebase";
 import { createUserProfile } from "../services/firestoreService";
 import { doc, updateDoc } from "firebase/firestore";
+import { ref, set } from "firebase/database";
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -119,7 +120,21 @@ const Signup = () => {
         });
       }
 
+      // 🎁 Auto-register a default device for the user
+      const defaultDeviceId = `SURAKSHA_${userCredential.user.uid.substring(0, 8).toUpperCase()}`;
+      const deviceRef = ref(database, `users/${userCredential.user.uid}/devices/${defaultDeviceId}`);
+      await set(deviceRef, {
+        deviceId: defaultDeviceId,
+        userId: userCredential.user.uid,
+        name: 'My Suraksha Device',
+        registeredAt: Date.now(),
+        lastSeen: Date.now(),
+        online: false
+      });
+
       console.log("Signup Successful ✅", userCredential.user);
+      console.log("✅ Default device registered:", defaultDeviceId);
+      
       navigate('/dashboard');
     } catch (err) {
       console.error("Signup Error:", err.code, err.message);

@@ -59,12 +59,21 @@ import { database, auth } from '../firebase';
  */
 export const registerDevice = async (deviceId, deviceInfo = {}) => {
   try {
+    console.log('🔵 [registerDevice] Starting registration...');
+    console.log('🔵 [registerDevice] DeviceId:', deviceId);
+    console.log('🔵 [registerDevice] DeviceInfo:', deviceInfo);
+    
     const user = auth.currentUser;
+    console.log('🔵 [registerDevice] Current User:', user);
+    
     if (!user) {
-      throw new Error('User must be authenticated to register a device');
+      console.error('❌ [registerDevice] No authenticated user');
+      throw new Error('User must be authenticated to register a device. Please login first.');
     }
 
     const deviceRef = ref(database, `users/${user.uid}/devices/${deviceId}`);
+    console.log('🔵 [registerDevice] Device Ref Path:', `users/${user.uid}/devices/${deviceId}`);
+    
     const deviceData = {
       deviceId,
       userId: user.uid,
@@ -75,11 +84,20 @@ export const registerDevice = async (deviceId, deviceInfo = {}) => {
       ...deviceInfo
     };
 
+    console.log('🔵 [registerDevice] Device Data:', deviceData);
+    console.log('🔵 [registerDevice] Writing to Firebase...');
+    
     await set(deviceRef, deviceData);
-    console.log('✅ Device registered:', deviceId);
+    
+    console.log('✅ [registerDevice] Device registered successfully:', deviceId);
     return { success: true, deviceId };
   } catch (error) {
-    console.error('❌ Device registration failed:', error);
+    console.error('❌ [registerDevice] Device registration failed:', error);
+    console.error('❌ [registerDevice] Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     return { success: false, error: error.message };
   }
 };
@@ -400,13 +418,18 @@ export const formatUptime = (milliseconds) => {
 export const getUserDevices = async () => {
   try {
     const user = auth.currentUser;
+    console.log('🔵 [getUserDevices] Current User:', user);
+    
     if (!user) {
+      console.error('❌ [getUserDevices] User not authenticated');
       throw new Error('User must be authenticated');
     }
 
     const devicesRef = ref(database, `users/${user.uid}/devices`);
-    const snapshot = await get(devicesRef);
+    console.log('🔵 [getUserDevices] Reading from:', `users/${user.uid}/devices`);
     
+    const snapshot = await get(devicesRef);
+
     if (snapshot.exists()) {
       const devices = [];
       snapshot.forEach((childSnapshot) => {
@@ -415,12 +438,14 @@ export const getUserDevices = async () => {
           ...childSnapshot.val()
         });
       });
+      console.log('✅ [getUserDevices] Found devices:', devices.length);
       return devices;
     }
 
+    console.log('⚪ [getUserDevices] No devices found');
     return [];
   } catch (error) {
-    console.error('❌ Failed to get user devices:', error);
+    console.error('❌ [getUserDevices] Failed to get user devices:', error);
     return [];
   }
 };

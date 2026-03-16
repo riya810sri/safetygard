@@ -48,10 +48,20 @@ const MyDevices = () => {
   // Load user devices
   const loadDevices = async () => {
     try {
+      console.log('🔵 Loading devices...');
+      
+      // Check if user is authenticated
+      if (!auth.currentUser) {
+        console.log('🔵 No authenticated user, redirecting to login');
+        navigate('/login');
+        return;
+      }
+      
       setLoading(true);
       const userDevices = await getUserDevices();
+      console.log('🔵 Loaded devices:', userDevices);
       setDevices(userDevices);
-      
+
       // Subscribe to real-time updates for each device
       userDevices.forEach(device => {
         const unsubscribe = subscribeToDeviceData(device.id, (data) => {
@@ -63,27 +73,43 @@ const MyDevices = () => {
           }
         });
       });
-      
+
       setLoading(false);
     } catch (error) {
-      console.error('Failed to load devices:', error);
+      console.error('❌ Failed to load devices:', error);
       setLoading(false);
+      alert('Failed to load devices: ' + error.message);
     }
   };
 
   // Handle add new device
   const handleAddDevice = async (e) => {
     e.preventDefault();
-    
+
+    console.log('🔵 Add Device Button Clicked!');
+    console.log('🔵 Current User:', auth.currentUser);
+    console.log('🔵 Device ID:', newDeviceId);
+    console.log('🔵 Device Name:', newDeviceName);
+
+    // Check if user is authenticated
+    if (!auth.currentUser) {
+      alert('❌ Please login to register a device');
+      navigate('/login');
+      return;
+    }
+
     if (!newDeviceId.trim()) {
       alert('Please enter a Device ID');
       return;
     }
 
     try {
+      console.log('🔵 Calling registerDevice...');
       const result = await registerDevice(newDeviceId.trim(), {
         name: newDeviceName.trim() || 'Suraksha Device'
       });
+
+      console.log('🔵 Register Device Result:', result);
 
       if (result.success) {
         alert('✅ Device registered successfully!');
@@ -95,6 +121,7 @@ const MyDevices = () => {
         alert('❌ Failed to register device: ' + result.error);
       }
     } catch (error) {
+      console.error('❌ Device Registration Error:', error);
       alert('Error: ' + error.message);
     }
   };
@@ -142,6 +169,21 @@ const MyDevices = () => {
               <p className="text-gray-600">
                 Manage and monitor your IoT safety devices
               </p>
+              {devices.length === 0 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3"
+                >
+                  <div className="text-2xl">💡</div>
+                  <div>
+                    <p className="font-semibold text-blue-900">New to Suraksha?</p>
+                    <p className="text-sm text-blue-700 mt-1">
+                      A default device has been created for you! You can add more devices or connect your ESP32 device.
+                    </p>
+                  </div>
+                </motion.div>
+              )}
             </div>
             <button
               onClick={() => setShowAddModal(true)}

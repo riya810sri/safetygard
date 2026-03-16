@@ -47,13 +47,16 @@
 #define FIREBASE_PROJECT_ID "womern-safety"  // Your Firebase Project ID
 #define USER_EMAIL "device@suraksha.com"
 #define USER_PASSWORD "DevicePassword123!"   // Create this user in Firebase Auth
+#define USER_UID "device_user_uid_here"      // Get this from Firebase Console > Authentication > Users
 
-// Realtime Database Paths
-#define DEVICE_PATH "/devices/{device_id}"
-#define SENSOR_PATH "/devices/{device_id}/sensors"
-#define LOCATION_PATH "/devices/{device_id}/location"
-#define SOS_PATH "/devices/{device_id}/sos"
-#define STATUS_PATH "/devices/{device_id}/status"
+// Realtime Database Paths (User-specific for proper access control)
+// Format: /users/{USER_UID}/devices/{DEVICE_ID}
+#define DEVICE_PATH_BASE "/users/"
+#define DEVICE_PATH_SUFFIX "/devices/"
+#define SENSOR_PATH_SUFFIX "/sensors"
+#define LOCATION_PATH_SUFFIX "/location"
+#define SOS_PATH_SUFFIX "/sos"
+#define STATUS_PATH_SUFFIX "/status"
 
 // Device Configuration
 #define DEVICE_ID "SURAKSHA_DEV_001"  // Unique ID for each device
@@ -341,30 +344,24 @@ void updateFirebase() {
     isOnline = false;
     return;
   }
-  
+
   isOnline = true;
-  
+
   // Update WiFi signal
   wifiSignal = WiFi.RSSI();
-  
-  // Replace {device_id} in paths
-  String devicePath = DEVICE_PATH;
-  devicePath.replace("{device_id}", DEVICE_ID);
-  
-  String sensorPath = SENSOR_PATH;
-  sensorPath.replace("{device_id}", DEVICE_ID);
-  
-  String locationPath = LOCATION_PATH;
-  locationPath.replace("{device_id}", DEVICE_ID);
-  
-  String statusPath = STATUS_PATH;
-  statusPath.replace("{device_id}", DEVICE_ID);
-  
+
+  // Build full paths: /users/{USER_UID}/devices/{DEVICE_ID}/...
+  String devicePath = String(DEVICE_PATH_BASE) + String(USER_UID) + String(DEVICE_PATH_SUFFIX) + String(DEVICE_ID);
+  String sensorPath = devicePath + String(SENSOR_PATH_SUFFIX);
+  String locationPath = devicePath + String(LOCATION_PATH_SUFFIX);
+  String statusPath = devicePath + String(STATUS_PATH_SUFFIX);
+  String sosPath = devicePath + String(SOS_PATH_SUFFIX);
+
   // Write sensor data
   Firebase.RTDB.setFloat(&fbdo, sensorPath + "/temperature", temperature);
   Firebase.RTDB.setFloat(&fbdo, sensorPath + "/humidity", humidity);
   Firebase.RTDB.setBool(&fbdo, sensorPath + "/motion", motionDetected);
-  
+
   // Write location data
   Firebase.RTDB.setFloat(&fbdo, locationPath + "/latitude", latitude);
   Firebase.RTDB.setFloat(&fbdo, locationPath + "/longitude", longitude);
@@ -372,20 +369,22 @@ void updateFirebase() {
   Firebase.RTDB.setFloat(&fbdo, locationPath + "/speed", speed);
   Firebase.RTDB.setInt(&fbdo, locationPath + "/satellites", gpsSatellites);
   Firebase.RTDB.setBool(&fbdo, locationPath + "/gpsValid", gps.location.isValid());
-  
+
   // Write device status
   Firebase.RTDB.setBool(&fbdo, statusPath + "/online", isOnline);
   Firebase.RTDB.setInt(&fbdo, statusPath + "/wifiSignal", wifiSignal);
   Firebase.RTDB.setFloat(&fbdo, statusPath + "/battery", batteryLevel);
   Firebase.RTDB.setInt(&fbdo, statusPath + "/lastUpdate", millis());
   Firebase.RTDB.setString(&fbdo, statusPath + "/lastError", lastError);
-  
+
   // Write device info
   Firebase.RTDB.setString(&fbdo, devicePath + "/deviceId", DEVICE_ID);
   Firebase.RTDB.setBool(&fbdo, devicePath + "/online", isOnline);
   Firebase.RTDB.setInt(&fbdo, devicePath + "/lastSeen", millis());
-  
+
   Serial.println("✅ Firebase updated!");
+  Serial.print("Path: ");
+  Serial.println(devicePath);
 }
 
 /**
@@ -395,29 +394,31 @@ void checkSOSButton() {
   if (millis() - lastSOSCheck < SOS_DEBOUNCE_DELAY) {
     return;
   }
-  
+
   bool sosState = digitalRead(SOS_BUTTON_PIN);
-  
+
   // Button pressed (LOW because of INPUT_PULLUP)
   if (sosState == LOW && lastSOSState == HIGH) {
     Serial.println("\n🚨 SOS BUTTON PRESSED! 🚨");
     blinkLED(10, 100);
-    
+
+    // Build SOS path: /users/{USER_UID}/devices/{DEVICE_ID}/sos
+    String sosPath = String(DEVICE_PATH_BASE) + String(USER_UID) + String(DEVICE_PATH_SUFFIX) + String(DEVICE_ID) + String(SOS_PATH_SUFFIX);
+
     // Write SOS alert to Firebase
-    String sosPath = SOS_PATH;
-    sosPath.replace("{device_id}", DEVICE_ID);
-    
     Firebase.RTDB.setBool(&fbdo, sosPath + "/active", true);
     Firebase.RTDB.setInt(&fbdo, sosPath + "/timestamp", millis());
     Firebase.RTDB.setFloat(&fbdo, sosPath + "/latitude", latitude);
     Firebase.RTDB.setFloat(&fbdo, sosPath + "/longitude", longitude);
     Firebase.RTDB.setString(&fbdo, sosPath + "/message", "EMERGENCY! Need immediate help!");
-    
+
     Serial.println("✅ SOS alert sent to Firebase!");
-    
+    Serial.print("SOS Path: ");
+    Serial.println(sosPath);
+
     delay(2000);  // Debounce delay
   }
-  
+
   lastSOSState = sosState;
   lastSOSCheck = millis();
 }
