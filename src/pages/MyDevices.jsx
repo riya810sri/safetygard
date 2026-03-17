@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import { 
   Plus, 
   Smartphone, 
@@ -112,12 +113,15 @@ const MyDevices = () => {
       console.log('🔵 Register Device Result:', result);
 
       if (result.success) {
-        alert('✅ Device registered successfully!');
-        setShowAddModal(false);
-        setNewDeviceId('');
-        setNewDeviceName('');
-        loadDevices();
-      } else {
+  Swal.fire({
+    title: 'Success!',
+    text: 'Device registered successfully',
+    imageUrl: '/hack.png',
+    imageWidth: 100,
+    imageHeight: 100,
+    confirmButtonText: 'OK'
+  });
+} else {
         alert('❌ Failed to register device: ' + result.error);
       }
     } catch (error) {
@@ -135,6 +139,7 @@ const MyDevices = () => {
     try {
       const result = await unregisterDevice(deviceId);
       if (result.success) {
+
         alert('✅ Device removed successfully');
         loadDevices();
       } else {

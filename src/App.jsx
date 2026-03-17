@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 // Lazy load components for better performance
 const Header = lazy(() => import('./components/Header'));
 const Footer = lazy(() => import('./components/Footer'));
+const AIChatbot = lazy(() => import('./components/AIChatbot'));
 const Home = lazy(() => import('./pages/Home'));
 const PublicMap = lazy(() => import('./pages/PublicMap'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -19,6 +20,7 @@ const HackathonDemo = lazy(() => import('./pages/HackathonDemo'));
 const GetDevice = lazy(() => import('./pages/GetDevice'));
 const MyDevices = lazy(() => import('./pages/MyDevices'));
 const DeviceDashboard = lazy(() => import('./components/DeviceDashboard'));
+
 
 // Loading fallback component
 const PageLoader = () => (
@@ -42,6 +44,12 @@ const Layout = ({ children }) => {
         {children}
       </AnimatePresence>
       {showLayout && <Footer />}
+
+       {/* 👇 AI Chatbot - Advanced with Gemini AI */}
+      <Suspense fallback={null}>
+        <AIChatbot />
+      </Suspense>
+
     </>
   );
 };

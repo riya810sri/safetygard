@@ -87,30 +87,30 @@ const Header = () => {
           : 'bg-transparent'
       }`}
     >
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+      <nav className="max-w-[1920px] mx-auto px-4 sm:px-8 lg:px-16">
+        <div className="flex justify-between items-center h-20 md:h-24">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
+          <Link to="/" className="flex items-center space-x-3">
             <motion.div
               whileHover={{ rotate: 10, scale: 1.1 }}
               transition={{ type: 'spring', stiffness: 300 }}
             >
-              <Shield className={`h-8 w-8 transition-colors duration-300 ${
+              <Shield className={`h-10 w-10 md:h-12 md:w-12 transition-colors duration-300 ${
                 isScrolled ? 'text-primary-600' : 'text-white'
               }`} />
             </motion.div>
-            <span className={`text-2xl font-bold transition-colors duration-300 ${
+            <span className={`text-3xl md:text-4xl font-bold transition-colors duration-300 ${
               isScrolled ? 'text-primary-600' : 'text-white'
             }`}>Suraksha</span>
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-6">
+          <div className="hidden md:flex items-center space-x-8">
             {navLinks.map((link) => (
               <Link
                 key={link.path}
                 to={link.path}
-                className={`font-semibold transition-colors duration-300 text-sm ${
+                className={`font-semibold transition-colors duration-300 text-base ${
                   isActive(link.path)
                     ? 'text-primary-600'
                     : isScrolled || location.pathname !== '/'
@@ -121,16 +121,16 @@ const Header = () => {
                 {link.name}
               </Link>
             ))}
-            
+
             {/* More Dropdown */}
             <div className="relative group">
-              <button className={`font-semibold transition-colors duration-300 text-sm flex items-center space-x-1 ${
+              <button className={`font-semibold transition-colors duration-300 text-base flex items-center space-x-1 ${
                 isScrolled || location.pathname !== '/'
                   ? 'text-gray-600 hover:text-primary-600'
                   : 'text-white/90 hover:text-white'
               }`}>
                 <span>More</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -155,7 +155,7 @@ const Header = () => {
           </div>
 
           {/* Auth Buttons */}
-          <div className="hidden md:flex items-center space-x-3">
+          <div className="hidden md:flex items-center space-x-4">
             {currentUser ? (
               <>
                 <Link to="/dashboard" className="flex items-center">
@@ -167,11 +167,11 @@ const Header = () => {
                       <img
                         src={userProfile.photoURL}
                         alt="Profile"
-                        className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-md"
+                        className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-md"
                       />
                     ) : (
-                      <div className="w-9 h-9 bg-gradient-to-br from-red-600 to-red-800 rounded-full flex items-center justify-center shadow-md border-2 border-white">
-                        <UserIcon className="h-4 w-4 text-white" />
+                      <div className="w-11 h-11 bg-gradient-to-br from-red-600 to-red-800 rounded-full flex items-center justify-center shadow-md border-2 border-white">
+                        <UserIcon className="h-5 w-5 text-white" />
                       </div>
                     )}
                   </motion.div>
@@ -180,9 +180,9 @@ const Header = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={handleLogout}
-                  className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-all shadow-md flex items-center space-x-2 text-sm"
+                  className="px-6 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-all shadow-md flex items-center space-x-2 text-base"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <LogOut className="h-5 w-5" />
                   <span>Logout</span>
                 </motion.button>
               </>
@@ -192,7 +192,7 @@ const Header = () => {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="px-4 py-2 text-sm font-semibold border-2 border-primary-600 text-primary-600 rounded-lg hover:bg-primary-50 transition-all"
+                    className="px-6 py-3 text-base font-semibold border-2 border-primary-600 text-primary-600 rounded-lg hover:bg-primary-50 transition-all"
                   >
                     Log In
                   </motion.button>
@@ -201,7 +201,7 @@ const Header = () => {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className={`px-5 py-2 font-semibold rounded-lg transition-all duration-300 shadow-md hover:shadow-lg ${
+                    className={`px-6 py-3 font-semibold rounded-lg transition-all duration-300 shadow-md hover:shadow-lg ${
                       isScrolled
                         ? 'bg-primary-600 text-white hover:bg-primary-700'
                         : 'bg-white text-primary-600 hover:bg-white/90'

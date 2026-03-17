@@ -12,6 +12,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import fetch from 'node-fetch';
 import nodemailer from 'nodemailer';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 dotenv.config();
 
@@ -24,6 +25,9 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// chatbot api
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Telegram Configuration
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -54,6 +58,25 @@ const emailTransporter = nodemailer.createTransport({
     pass: EMAIL_PASS
   }
 });
+
+//chatbot api logic
+
+app.post("/chat", async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+
+    const result = await model.generateContent(message);
+    const response = await result.response;
+
+    res.json({ reply: response.text() });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error generating response" });
+  }
+});
+
 
 /**
  * POST /api/send-telegram-alert
