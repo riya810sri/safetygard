@@ -217,14 +217,14 @@ const Header = () => {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className={`md:hidden p-2 rounded-lg transition-colors ${
+            className={`md:hidden p-3 rounded-lg transition-colors ${
               isScrolled ? 'hover:bg-gray-100' : 'hover:bg-white/20'
             }`}
           >
             {isMenuOpen ? (
-              <X className={`h-6 w-6 ${isScrolled ? 'text-gray-700' : 'text-white'}`} />
+              <X className={`h-7 w-7 ${isScrolled ? 'text-gray-700' : 'text-white'}`} />
             ) : (
-              <Menu className={`h-6 w-6 ${isScrolled ? 'text-gray-700' : 'text-white'}`} />
+              <Menu className={`h-7 w-7 ${isScrolled ? 'text-gray-700' : 'text-white'}`} />
             )}
           </button>
         </div>

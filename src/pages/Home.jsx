@@ -114,6 +114,9 @@ const Home = () => {
     <main className="min-h-screen">
       {/* Hero Section - Enhanced */}
       <section className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 pt-32 pb-24 overflow-hidden">
+        {/* Hacker background image */}
+        <div className="absolute inset-0 bg-[url('/hack.jpg')] bg-cover bg-center opacity-30 -z-10"></div>
+        
         {/* Animated Background Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{
@@ -187,7 +190,7 @@ const Home = () => {
             </motion.div>
 
             {/* Text Content - Enhanced */}
-            <motion.div 
+            <motion.div
               className="text-center lg:text-left max-w-2xl"
               variants={containerVariants}
               initial="hidden"

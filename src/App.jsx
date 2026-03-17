@@ -9,6 +9,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 const Header = lazy(() => import('./components/Header'));
 const Footer = lazy(() => import('./components/Footer'));
 const AIChatbot = lazy(() => import('./components/AIChatbot'));
+const SafePlaces = lazy(() => import('./components/SafePlaces'));
 const Home = lazy(() => import('./pages/Home'));
 const PublicMap = lazy(() => import('./pages/PublicMap'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -48,6 +49,11 @@ const Layout = ({ children }) => {
        {/* 👇 AI Chatbot - Advanced with Gemini AI */}
       <Suspense fallback={null}>
         <AIChatbot />
+      </Suspense>
+
+      {/* 🛡️ Safe Places - Find Police Stations, Hospitals Nearby */}
+      <Suspense fallback={null}>
+        <SafePlaces />
       </Suspense>
 
     </>

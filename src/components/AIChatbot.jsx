@@ -2,6 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { MapPin, Phone, Shield, Heart, Mic, MicOff, Volume2, VolumeX, Send, X, MessageCircle } from "lucide-react";
+import { openSafePlacesModal } from "./SafePlaces";
+
+// Callback to open Safe Places modal
+let openSafePlacesCallback = null;
+
+export const setSafePlacesCallback = (callback) => {
+  openSafePlacesCallback = callback;
+};
+
+// Set the callback to open Safe Places
+openSafePlacesCallback = openSafePlacesModal;
 
 // Emergency quick actions
 const QUICK_ACTIONS = [
@@ -51,7 +62,28 @@ const FALLBACK_RESPONSES = {
 const getFallbackResponse = (message) => {
   const lowerMsg = message.toLowerCase();
   const lang = lowerMsg.match(/[अ-ह]/) ? "hi" : "en"; // Detect Hindi script
+
+  // 🚨 Detect police station / safe place search - trigger Safe Places modal
+  const policeSearchTerms = /(police|station|thana|cop|nearest police|nearby police|पुलिस|थाना|नज़दीकी पुलिस)/;
+  const safePlaceTerms = /(safe place|shelter|hospital|help desk|women shelter|सुरक्षित जगह|शelter)/;
   
+  if (lowerMsg.match(policeSearchTerms) || lowerMsg.match(safePlaceTerms)) {
+    console.log("🚨 Police/Safe place search detected:", message);
+    // Trigger Safe Places modal after a short delay
+    setTimeout(() => {
+      console.log("🛡️ Attempting to open Safe Places modal...");
+      openSafePlacesModal();
+    }, 500);
+    
+    return { 
+      text: lang === "hi" 
+        ? "🛡️ मैं आपके पास के पुलिस स्टेशन और सुरक्षित स्थान दिखा रही हूँ...\n\nकृपया नीचे दिए गए बटन का उपयोग करें या लोकेशन अनुमति दें।\n\n📍 तुरंत मदद के लिए:\n• 112 - राष्ट्रीय इमरजेंसी\n• 100 - पुलिस\n• 181 - महिला हेल्पलाइन"
+        : "🛡️ Showing you nearby police stations and safe places...\n\nPlease use the button below or enable location.\n\n📍 For immediate help:\n• 112 - National Emergency\n• 100 - Police\n• 181 - Women's Helpline",
+      lang,
+      showSafePlaces: true
+    };
+  }
+
   if (lowerMsg.match(/^(hi|hello|hey|namaste|नमस्ते|हलो|नमस्कार)/)) {
     return { text: FALLBACK_RESPONSES.greeting[lang], lang };
   }
@@ -67,13 +99,10 @@ const getFallbackResponse = (message) => {
   if (lowerMsg.match(/(emergency|urgent|बचाओ|इमरजेंसी|तुरंत)/)) {
     return { text: FALLBACK_RESPONSES.emergency[lang], lang };
   }
-  if (lowerMsg.match(/(safe place|shelter|hospital|police|सुरक्षित|थाना)/)) {
-    return { text: FALLBACK_RESPONSES.safe_place[lang], lang };
-  }
   if (lowerMsg.match(/(helpline|number|contact|phone|नंबर|संपर्क)/)) {
     return { text: FALLBACK_RESPONSES.helpline[lang], lang };
   }
-  
+
   return { text: FALLBACK_RESPONSES.default[lang], lang };
 };
 
@@ -95,11 +124,13 @@ export default function AIChatbot() {
   useEffect(() => {
     setMounted(true);
     console.log("✅ AIChatbot mounted successfully");
+    console.log("📱 Speech support available:", speechSupportAvailable);
+    console.log("🔑 Has API key:", hasApiKey);
   }, []);
 
   // Initialize Gemini AI
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  console.log("Gemini API Key loaded:", apiKey ? `${apiKey.substring(0, 10)}...` : "NOT FOUND");
+  console.log("🔑 Gemini API Key loaded:", apiKey ? `${apiKey.substring(0, 10)}...` : "NOT FOUND");
   
   const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
   const model = apiKey ? genAI.getGenerativeModel({ model: "gemini-pro" }) : null;
@@ -131,7 +162,7 @@ export default function AIChatbot() {
     
     if (SpeechRecognition) {
       setSpeechSupportAvailable(true);
-      console.log("Speech Recognition supported");
+      console.log("✅ Speech Recognition supported");
       
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = false;
@@ -140,19 +171,19 @@ export default function AIChatbot() {
       recognitionRef.current.maxAlternatives = 1;
 
       recognitionRef.current.onstart = () => {
-        console.log("Speech recognition started");
+        console.log("🎤 Speech recognition started");
         setIsListening(true);
       };
 
       recognitionRef.current.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
-        console.log("Speech recognized:", transcript);
+        console.log("🎤 Speech recognized:", transcript);
         setInput(transcript);
         setIsListening(false);
       };
 
       recognitionRef.current.onerror = (event) => {
-        console.error("Speech recognition error:", event.error);
+        console.error("❌ Speech recognition error:", event.error);
         setIsListening(false);
         
         // Show user-friendly error
@@ -168,12 +199,17 @@ export default function AIChatbot() {
       };
 
       recognitionRef.current.onend = () => {
-        console.log("Speech recognition ended");
+        console.log("🎤 Speech recognition ended");
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onnomatch = () => {
+        console.log("⚠️ No speech match");
         setIsListening(false);
       };
     } else {
       setSpeechSupportAvailable(false);
-      console.warn("Speech Recognition NOT supported in this browser");
+      console.warn("❌ Speech Recognition NOT supported in this browser. Use Chrome or Edge.");
     }
   }, [language]);
 
@@ -199,6 +235,9 @@ export default function AIChatbot() {
 
   // Voice Input
   const toggleListening = () => {
+    console.log("🎤 Toggle listening - Speech support:", speechSupportAvailable);
+    console.log("🎤 Recognition object:", recognitionRef.current);
+    
     if (!speechSupportAvailable) {
       alert(language === "hi"
         ? "आपका ब्राउज़र वॉइस इनपुट का समर्थन नहीं करता। कृपया Chrome या Edge का उपयोग करें।"
@@ -210,26 +249,34 @@ export default function AIChatbot() {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
         setIsListening(false);
+        console.log("🎤 Stopped listening");
       }
     } else {
       try {
         // Request microphone permission first
         navigator.mediaDevices.getUserMedia({ audio: true })
           .then(() => {
+            console.log("✅ Microphone permission granted");
             // Permission granted, start recognition
             if (recognitionRef.current) {
-              recognitionRef.current.start();
+              try {
+                recognitionRef.current.start();
+                console.log("🎤 Started listening");
+              } catch (e) {
+                console.error("❌ Error starting recognition:", e);
+                setIsListening(false);
+              }
             }
           })
           .catch((err) => {
-            console.error("Microphone permission error:", err);
+            console.error("❌ Microphone permission error:", err);
             setIsListening(false);
             alert(language === "hi"
               ? "माइक अनुमति आवश्यक है। कृपया ब्राउज़र सेटिंग्स में अनुमति दें।"
               : "Microphone permission required. Please allow in browser settings.");
           });
       } catch (error) {
-        console.error("Error starting voice recognition:", error);
+        console.error("❌ Error in toggleListening:", error);
         setIsListening(false);
       }
     }
@@ -316,14 +363,19 @@ export default function AIChatbot() {
   const handleQuickAction = (actionId) => {
     const action = QUICK_ACTIONS.find(a => a.id === actionId);
     if (action) {
-      // Direct response for quick actions (instant, no API needed)
+      // Open Safe Places modal for "safe-place" action
+      if (actionId === "safe-place") {
+        openSafePlacesModal();
+        return;
+      }
+      
+      // Direct response for other quick actions (instant, no API needed)
       const actionResponses = {
         unsafe: language === "hi" ? FALLBACK_RESPONSES.unsafe.hi : FALLBACK_RESPONSES.unsafe.en,
         emergency: language === "hi" ? FALLBACK_RESPONSES.emergency.hi : FALLBACK_RESPONSES.emergency.en,
-        "safe-place": language === "hi" ? FALLBACK_RESPONSES.safe_place.hi : FALLBACK_RESPONSES.safe_place.en,
         helpline: language === "hi" ? FALLBACK_RESPONSES.helpline.hi : FALLBACK_RESPONSES.helpline.en,
       };
-      
+
       const userMessage = { role: "user", content: action.label, timestamp: new Date() };
       const botMessage = { role: "bot", content: actionResponses[actionId], timestamp: new Date() };
       setMessages(prev => [...prev, userMessage, botMessage]);
@@ -336,15 +388,10 @@ export default function AIChatbot() {
 
   return (
     <>
-      {/* Debug indicator - remove after testing */}
-      <div className="fixed top-0 left-0 bg-red-500 text-white text-xs px-2 py-1 z-[10000]">
-        Chatbot Loaded: {mounted ? 'Yes' : 'No'}
-      </div>
-    
-      {/* Floating Chat Button */}
+      {/* Floating Chat Button - Responsive sizes */}
       <motion.button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-6 right-6 z-[9999] flex items-center justify-center w-20 h-20 md:w-24 md:h-24 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-full shadow-2xl transition-all duration-300 overflow-hidden border-4 border-white/20"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[9999] flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-full shadow-2xl transition-all duration-300 overflow-hidden border-2 sm:border-3 md:border-4 border-white/20"
         whileHover={{ scale: 1.15, rotate: 10 }}
         whileTap={{ scale: 0.9 }}
         initial={{ scale: 0, rotate: -180 }}
@@ -353,13 +400,13 @@ export default function AIChatbot() {
         style={{ pointerEvents: 'auto' }}
       >
         {open ? (
-          <X size={36} className="text-white" />
+          <X size={28} className="text-white sm:size-30 md:size-36 lg:size-40" />
         ) : (
           <img src="/robot.gif" alt="Chatbot" className="w-full h-full object-cover" />
         )}
       </motion.button>
 
-      {/* Chat Window */}
+      {/* Chat Window - Fully Responsive */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -367,40 +414,40 @@ export default function AIChatbot() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 100, scale: 0.8 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed bottom-32 right-6 z-[9998] w-[90vw] md:w-[450px] lg:w-[500px] bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100"
+            className="fixed bottom-20 sm:bottom-24 md:bottom-28 right-4 sm:right-6 z-[9998] w-[calc(100vw-2rem)] sm:w-[90vw] md:w-[450px] lg:w-[500px] max-w-[500px] bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-gray-100"
             style={{ pointerEvents: 'auto' }}
           >
-            {/* Header */}
-            <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-5 py-4">
+            {/* Header - Responsive */}
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-3 sm:px-5 py-3 sm:py-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center overflow-hidden shadow-lg">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center overflow-hidden shadow-lg flex-shrink-0">
                     <img src="/robot.gif" alt="AI Bot" className="w-full h-full object-cover" />
                   </div>
-                  <div>
-                    <h3 className="text-white font-bold text-lg">Suraksha AI</h3>
-                    <div className="flex items-center space-x-2">
+                  <div className="min-w-0">
+                    <h3 className="text-white font-bold text-base sm:text-lg truncate">Suraksha AI</h3>
+                    <div className="flex items-center space-x-1 sm:space-x-2">
                       <p className="text-green-100 text-xs flex items-center">
-                        <span className="w-2 h-2 bg-green-400 rounded-full mr-1 animate-pulse"></span>
+                        <span className="w-2 h-2 bg-green-400 rounded-full mr-1 animate-pulse flex-shrink-0"></span>
                         {language === "hi" ? "ऑनलाइन • हिंदी" : "Online • English"}
                       </p>
                       {!hasApiKey && (
-                        <span className="text-yellow-200 text-xs ml-2" title="API Key not configured">⚠️</span>
+                        <span className="text-yellow-200 text-xs ml-1 sm:ml-2" title="API Key not configured">⚠️</span>
                       )}
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
                   <motion.button
                     onClick={toggleLanguage}
-                    className="px-3 py-1 bg-white/20 backdrop-blur-sm text-white text-xs rounded-full hover:bg-white/30 transition-colors"
+                    className="px-2 sm:px-3 py-1 bg-white/20 backdrop-blur-sm text-white text-xs rounded-full hover:bg-white/30 transition-colors whitespace-nowrap"
                     whileTap={{ scale: 0.9 }}
                   >
                     {language === "hi" ? "English" : "हिंदी"}
                   </motion.button>
                   <motion.button
                     onClick={() => setIsSpeaking(!isSpeaking)}
-                    className={`p-2 rounded-full transition-colors ${isSpeaking ? "bg-white/30" : "bg-white/20"} hover:bg-white/30`}
+                    className={`p-2 rounded-full transition-colors ${isSpeaking ? "bg-white/30" : "bg-white/20"} hover:bg-white/30 flex-shrink-0`}
                     whileTap={{ scale: 0.9 }}
                   >
                     {isSpeaking ? <Volume2 size={18} className="text-white" /> : <VolumeX size={18} className="text-white" />}
@@ -409,15 +456,15 @@ export default function AIChatbot() {
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-              <p className="text-xs text-gray-500 mb-2">{language === "hi" ? "त्वरित कार्यों के लिए टैप करें:" : "Tap for quick actions:"}</p>
+            {/* Quick Actions - Responsive */}
+            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-gray-50 border-b border-gray-100">
+              <p className="text-xs text-gray-500 mb-2 px-1">{language === "hi" ? "त्वरित कार्यों के लिए टैप करें:" : "Tap for quick actions:"}</p>
               <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
                 {QUICK_ACTIONS.map((action) => (
                   <motion.button
                     key={action.id}
                     onClick={() => handleQuickAction(action.id)}
-                    className={`flex items-center space-x-1 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-colors ${
+                    className={`flex items-center justify-center space-x-1 px-2 sm:px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-colors ${
                       action.color === "red" 
                         ? "bg-red-100 text-red-700 hover:bg-red-200" 
                         : action.color === "green"
@@ -427,26 +474,26 @@ export default function AIChatbot() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    <action.icon size={14} />
-                    <span>{action.label}</span>
+                    <action.icon size={14} className="flex-shrink-0" />
+                    <span className="truncate">{action.label}</span>
                   </motion.button>
                 ))}
               </div>
             </div>
 
-            {/* Messages */}
-            <div className="h-96 overflow-y-auto p-4 bg-gradient-to-b from-gray-50 to-white space-y-4">
+            {/* Messages - Responsive */}
+            <div className="h-[320px] sm:h-80 md:h-96 overflow-y-auto p-3 sm:p-4 bg-gradient-to-b from-gray-50 to-white space-y-3 sm:space-y-4">
               {messages.length === 0 ? (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="text-center py-8"
                 >
-                  <div className="text-7xl mb-4">🙏</div>
-                  <p className="text-gray-600 font-semibold text-lg">
+                  <div className="text-5xl sm:text-6xl md:text-7xl mb-4">🙏</div>
+                  <p className="text-gray-600 font-semibold text-base sm:text-lg md:text-lg">
                     {language === "hi" ? "नमस्ते! मैं आपकी कैसे मदद कर सकती हूँ?" : "Namaste! How can I help you today?"}
                   </p>
-                  <p className="text-gray-500 text-base mt-2">
+                  <p className="text-gray-500 text-sm sm:text-base mt-2 px-4">
                     {language === "hi" ? "मैं आपकी सुरक्षा के लिए यहाँ हूँ" : "I'm here for your safety"}
                   </p>
                 </motion.div>
@@ -460,7 +507,7 @@ export default function AIChatbot() {
                     className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`max-w-[85%] px-5 py-3 rounded-2xl text-base ${
+                      className={`max-w-[85%] sm:max-w-[80%] px-3 sm:px-5 py-2 sm:py-3 rounded-2xl text-sm sm:text-base ${
                         msg.role === "user"
                           ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-br-sm"
                           : "bg-white shadow-md text-gray-800 rounded-bl-sm border border-gray-100"
@@ -492,13 +539,13 @@ export default function AIChatbot() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
-            <div className="border-t border-gray-200 p-4 bg-white">
-              <div className="flex items-center space-x-3">
+            {/* Input Area - Responsive */}
+            <div className="border-t border-gray-200 p-3 sm:p-4 bg-white">
+              <div className="flex items-center space-x-2 sm:space-x-3">
                 <motion.button
                   onClick={toggleListening}
                   disabled={isLoading || !speechSupportAvailable}
-                  className={`p-4 rounded-full transition-all ${
+                  className={`p-1 sm:p-1.5 md:p-1 lg:p-1 rounded-full transition-all flex-shrink-0 ${
                     isListening
                       ? "bg-red-100 text-red-600 animate-pulse"
                       : !speechSupportAvailable
@@ -508,10 +555,10 @@ export default function AIChatbot() {
                   whileTap={{ scale: 0.9 }}
                   title={!speechSupportAvailable ? (language === "hi" ? "वॉइस इनपुट समर्थित नहीं" : "Voice input not supported") : ""}
                 >
-                  {isListening ? <MicOff size={24} /> : <Mic size={24} />}
+                  {isListening ? <MicOff size={12} className="sm:size-14 md:size-12 lg:size-12" /> : <Mic size={12} className="sm:size-14 md:size-12 lg:size-12" />}
                 </motion.button>
                 {!speechSupportAvailable && (
-                  <span className="text-xs text-gray-500" title="Use Chrome or Edge for voice input">
+                  <span className="text-xs text-gray-500 hidden sm:inline" title="Use Chrome or Edge for voice input">
                     {language === "hi" ? "क्रोम का उपयोग करें" : "Use Chrome"}
                   </span>
                 )}
@@ -522,18 +569,18 @@ export default function AIChatbot() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendMessage())}
                   placeholder={language === "hi" ? "अपना संदेश टाइप करें..." : "Type your message..."}
-                  className="flex-1 px-5 py-4 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500 focus:bg-white transition-all text-base"
+                  className="flex-1 px-3 sm:px-4 py-2 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500 focus:bg-white transition-all text-sm sm:text-base min-w-0"
                   disabled={isLoading}
                 />
 
                 <motion.button
                   onClick={() => sendMessage()}
                   disabled={isLoading || !input.trim()}
-                  className="p-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-full transition-all shadow-lg"
+                  className="p-1 sm:p-1.5 md:p-1 lg:p-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-full transition-all shadow-lg flex-shrink-0"
                   whileHover={{ scale: isLoading || !input.trim() ? 1 : 1.1 }}
                   whileTap={{ scale: isLoading || !input.trim() ? 1 : 0.9 }}
                 >
-                  <Send size={24} />
+                  <Send size={12} className="sm:size-14 md:size-12 lg:size-12" />
                 </motion.button>
               </div>
               {isListening && (

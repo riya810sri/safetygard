@@ -769,6 +769,31 @@ const Dashboard = () => {
                       </motion.div>
                     </div>
 
+                    {/* Southern Uttar Pradesh Location */}
+                    <div className="mt-4 pt-4 border-t-2 border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-bold text-gray-700 flex items-center space-x-2">
+                          <MapPin className="h-4 w-4 text-green-600" />
+                          <span>Southern Uttar Pradesh Region</span>
+                        </h3>
+                      </div>
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border-2 border-green-200">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500 mb-1">Latitude</p>
+                            <p className="text-lg font-bold text-green-700 font-mono">25.4612° N</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500 mb-1">Longitude</p>
+                            <p className="text-lg font-bold text-green-700 font-mono">81.8521° E</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-3 text-center">
+                          📍 Approximate coordinates for Southern UP, India
+                        </p>
+                      </div>
+                    </div>
+
                     {/* Live Location Tracker */}
                     {trackedLocations.length > 0 && (
                       <div className="mt-4 pt-4 border-t-2 border-gray-200">
