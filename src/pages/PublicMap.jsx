@@ -76,6 +76,46 @@ const PublicMap = () => {
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [mapInstance, setMapInstance] = useState(null);
   const [recentIncidents, setRecentIncidents] = useState([]);
+  const [viewMode, setViewMode] = useState('india'); // 'india' or 'prayagraj'
+  
+  // Prayagraj Local Map State
+  const [prayagrajMapCenter, setPrayagrajMapCenter] = useState([25.4358, 81.8463]);
+  const [prayagrajSelectedLocation, setPrayagrajSelectedLocation] = useState(null);
+  const [prayagrajMapInstance, setPrayagrajMapInstance] = useState(null);
+  const [prayagrajFilter, setPrayagrajFilter] = useState('all');
+
+  // Prayagraj (Allahabad) Local Areas - Safe, Moderate, Risky Zones
+  const prayagrajZones = [
+    // SAFE ZONES (Green)
+    { id: 'p1', name: 'Civil Lines', type: 'safe', volunteers: 45, incidents: 1, lat: 25.4358, lng: 81.8463, area: 'Civil Lines', description: 'Well-lit, police presence' },
+    { id: 'p2', name: 'Tagore Town', type: 'safe', volunteers: 38, incidents: 2, lat: 25.4412, lng: 81.8520, area: 'Tagore Town', description: 'Residential area, good connectivity' },
+    { id: 'p3', name: 'George Town', type: 'safe', volunteers: 42, incidents: 1, lat: 25.4380, lng: 81.8450, area: 'George Town', description: 'Commercial hub, CCTV coverage' },
+    { id: 'p4', name: 'Katra', type: 'safe', volunteers: 35, incidents: 2, lat: 25.4330, lng: 81.8400, area: 'Katra', description: 'Market area, busy during day' },
+    { id: 'p5', name: 'Sadar Bazaar', type: 'safe', volunteers: 40, incidents: 3, lat: 25.4390, lng: 81.8380, area: 'Sadar', description: 'Cantonment area, secure' },
+    { id: 'p6', name: 'MG Marg', type: 'safe', volunteers: 50, incidents: 1, lat: 25.4370, lng: 81.8490, area: 'Civil Lines', description: 'Main road, well populated' },
+    { id: 'p7', name: 'Elgin Road', type: 'safe', volunteers: 36, incidents: 2, lat: 25.4400, lng: 81.8510, area: 'Civil Lines', description: 'Educational institutions nearby' },
+    { id: 'p8', name: 'Ashok Nagar', type: 'safe', volunteers: 32, incidents: 2, lat: 25.4450, lng: 81.8600, area: 'Ashok Nagar', description: 'Residential colony' },
+    { id: 'p9', name: 'Rambagh', type: 'safe', volunteers: 30, incidents: 1, lat: 25.4500, lng: 81.8700, area: 'Rambagh', description: 'Green area, peaceful' },
+    { id: 'p10', name: 'Lukarganj', type: 'safe', volunteers: 28, incidents: 2, lat: 25.4320, lng: 81.8550, area: 'Lukarganj', description: 'Traditional market' },
+    
+    // MODERATE RISK ZONES (Yellow)
+    { id: 'p11', name: 'Chowk', type: 'moderate', volunteers: 22, incidents: 6, lat: 25.4310, lng: 81.8350, area: 'Chowk', description: 'Crowded market, be careful' },
+    { id: 'p12', name: 'Khusro Bagh Area', type: 'moderate', volunteers: 20, incidents: 5, lat: 25.4290, lng: 81.8320, area: 'Old City', description: 'Historical area, less lit at night' },
+    { id: 'p13', name: 'Daryabad', type: 'moderate', volunteers: 25, incidents: 5, lat: 25.4280, lng: 81.8380, area: 'Daryabad', description: 'Wholesale market, crowded' },
+    { id: 'p14', name: 'Jhusi', type: 'moderate', volunteers: 18, incidents: 4, lat: 25.4200, lng: 81.8900, area: 'Jhusi', description: 'Developing area, limited transport' },
+    { id: 'p15', name: 'Naini', type: 'moderate', volunteers: 24, incidents: 6, lat: 25.4100, lng: 81.8200, area: 'Naini', description: 'Industrial area, be cautious' },
+    { id: 'p16', name: 'Phaphamau', type: 'moderate', volunteers: 20, incidents: 5, lat: 25.4000, lng: 81.8700, area: 'Phaphamau', description: 'Suburban area, moderate risk' },
+    { id: 'p17', name: 'Soraon', type: 'moderate', volunteers: 16, incidents: 4, lat: 25.3900, lng: 81.9000, area: 'Soraon', description: 'Rural-urban fringe' },
+    { id: 'p18', name: 'Karchhana', type: 'moderate', volunteers: 15, incidents: 4, lat: 25.3800, lng: 81.8100, area: 'Karchhana', description: 'Developing locality' },
+    
+    // RISKY ZONES (Red) - High Caution Areas
+    { id: 'p19', name: 'Zero Road', type: 'caution', volunteers: 12, incidents: 12, lat: 25.4250, lng: 81.8280, area: 'Zero Road', description: 'Less populated at night' },
+    { id: 'p20', name: 'Mumfordganj', type: 'caution', volunteers: 10, incidents: 10, lat: 25.4200, lng: 81.8100, area: 'Mumfordganj', description: 'Isolated areas, avoid late night' },
+    { id: 'p21', name: 'Johnstonganj', type: 'caution', volunteers: 14, incidents: 9, lat: 25.4270, lng: 81.8300, area: 'Old City', description: 'Narrow lanes, poor lighting' },
+    { id: 'p22', name: 'Bhiti', type: 'caution', volunteers: 8, incidents: 8, lat: 25.4150, lng: 81.8000, area: 'Bhiti', description: 'Remote area, limited connectivity' },
+    { id: 'p23', name: 'Mandhata', type: 'caution', volunteers: 10, incidents: 11, lat: 25.4100, lng: 81.7900, area: 'Mandhata', description: 'Industrial zone, avoid night' },
+    { id: 'p24', name: 'Handia', type: 'caution', volunteers: 9, incidents: 8, lat: 25.3700, lng: 81.7800, area: 'Handia', description: 'Rural area, limited help' },
+  ];
 
   const safetyZones = [
     { id: 1, name: 'Connaught Place', type: 'safe', volunteers: 45, incidents: 2, lat: 28.6315, lng: 77.2167, keywords: ['cp', 'connaught', 'place', 'central'] },
@@ -510,9 +550,16 @@ const PublicMap = () => {
     }
   };
 
-  const filteredZones = safetyZones.filter(zone => {
+  // Filter zones based on view mode
+  const filteredZones = (viewMode === 'prayagraj' ? prayagrajZones : safetyZones).filter(zone => {
     if (selectedFilter === 'all') return true;
     return zone.type === selectedFilter;
+  });
+
+  // Filtered Prayagraj Zones (for separate Prayagraj map section)
+  const filteredPrayagrajZones = prayagrajZones.filter(zone => {
+    if (prayagrajFilter === 'all') return true;
+    return zone.type === prayagrajFilter;
   });
 
   const handleLocationSelect = (location) => {
@@ -540,14 +587,16 @@ const PublicMap = () => {
     let nearest = null;
     let minDistance = Infinity;
     
-    safetyZones.forEach(zone => {
+    const zonesToSearch = viewMode === 'prayagraj' ? prayagrajZones : safetyZones;
+
+    zonesToSearch.forEach(zone => {
       const distance = calculateDistance(lat, lng, zone.lat, zone.lng);
       if (distance < minDistance) {
         minDistance = distance;
         nearest = zone;
       }
     });
-    
+
     return nearest;
   };
 
@@ -599,22 +648,25 @@ const PublicMap = () => {
     // First, search in safety zones by name or keywords
     const queryLower = query.toLowerCase().trim();
     
+    // Use appropriate zones based on view mode
+    const zonesToSearch = viewMode === 'prayagraj' ? prayagrajZones : safetyZones;
+
     // Improved search - check all variations
-    let found = safetyZones.find(zone => {
+    let found = zonesToSearch.find(zone => {
       // Check if query matches zone name
       if (zone.name.toLowerCase().includes(queryLower)) return true;
-      
+
       // Check if query matches first word of zone name (e.g., "bareilly" matches "Bareilly")
       const zoneNameFirstWord = zone.name.toLowerCase().split(' ')[0];
       if (zoneNameFirstWord.includes(queryLower) || queryLower.includes(zoneNameFirstWord)) return true;
-      
+
       // Check keywords
       if (zone.keywords?.some(keyword => keyword.includes(queryLower) || queryLower.includes(keyword))) return true;
-      
+
       // Check if any word in zone name matches
       const zoneWords = zone.name.toLowerCase().split(' ');
       if (zoneWords.some(word => word.includes(queryLower) || queryLower.includes(word))) return true;
-      
+
       return false;
     });
 
@@ -629,23 +681,25 @@ const PublicMap = () => {
       return;
     }
 
-    // Second, search in nearby localities
-    const nearbyMatch = nearbyLocalities.find(locality =>
-      locality.name.toLowerCase().includes(queryLower) ||
-      queryLower.includes(locality.name.toLowerCase())
-    );
+    // Second, search in nearby localities (only for India view)
+    if (viewMode === 'india') {
+      const nearbyMatch = nearbyLocalities.find(locality =>
+        locality.name.toLowerCase().includes(queryLower) ||
+        queryLower.includes(locality.name.toLowerCase())
+      );
 
-    if (nearbyMatch) {
-      handleLocationSelect({ lat: nearbyMatch.lat, lng: nearbyMatch.lng, name: nearbyMatch.name });
-      const zone = safetyZones.find(z => z.id === nearbyMatch.nearestZone);
-      setSearchResult({
-        ...zone,
-        isExactMatch: false,
-        nearbyLocality: nearbyMatch.name,
-        distance: nearbyMatch.distance
-      });
-      setShowSearchResult(true);
-      return;
+      if (nearbyMatch) {
+        handleLocationSelect({ lat: nearbyMatch.lat, lng: nearbyMatch.lng, name: nearbyMatch.name });
+        const zone = safetyZones.find(z => z.id === nearbyMatch.nearestZone);
+        setSearchResult({
+          ...zone,
+          isExactMatch: false,
+          nearbyLocality: nearbyMatch.name,
+          distance: nearbyMatch.distance
+        });
+        setShowSearchResult(true);
+        return;
+      }
     }
 
     // Third, try geocoding for any location
@@ -691,6 +745,20 @@ const PublicMap = () => {
     handleLocationSelect({ lat: zone.lat, lng: zone.lng, name: zone.name });
   };
 
+  // Prayagraj Map Handlers
+  const handlePrayagrajLocationSelect = (location) => {
+    setPrayagrajSelectedLocation(location);
+    setPrayagrajMapCenter([location.lat, location.lng]);
+    
+    if (prayagrajMapInstance) {
+      prayagrajMapInstance.flyTo([location.lat, location.lng], 14);
+    }
+  };
+
+  const handlePrayagrajMapClick = (zone) => {
+    handlePrayagrajLocationSelect({ lat: zone.lat, lng: zone.lng, name: zone.name });
+  };
+
   const getZoneTypeLabel = (type) => {
     switch (type) {
       case 'safe': return 'Safe Zone';
@@ -727,12 +795,48 @@ const PublicMap = () => {
           transition={{ duration: 0.5 }}
           className="mb-8"
         >
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-            Suraksha Safety Map
-          </h1>
-          <p className="text-gray-600">
-            Search any location to check its safety status in real-time
-          </p>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+                {viewMode === 'prayagraj' ? '📍 Prayagraj (Allahabad) Safety Map' : '🗺️ Suraksha Safety Map'}
+              </h1>
+              <p className="text-gray-600">
+                {viewMode === 'prayagraj' 
+                  ? 'Local safety zones with real-time risk assessment' 
+                  : 'Search any location to check its safety status in real-time'}
+              </p>
+            </div>
+            
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-2 bg-white rounded-lg p-1 shadow-md">
+              <button
+                onClick={() => {
+                  setViewMode('india');
+                  setMapCenter([28.6139, 77.2090]);
+                }}
+                className={`px-4 py-2 rounded-md font-medium transition-all ${
+                  viewMode === 'india'
+                    ? 'bg-primary-600 text-white shadow-md'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                🇮🇳 India Map
+              </button>
+              <button
+                onClick={() => {
+                  setViewMode('prayagraj');
+                  setMapCenter([25.4358, 81.8463]);
+                }}
+                className={`px-4 py-2 rounded-md font-medium transition-all ${
+                  viewMode === 'prayagraj'
+                    ? 'bg-primary-600 text-white shadow-md'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                🏛️ Prayagraj Local
+              </button>
+            </div>
+          </div>
         </motion.div>
 
         {/* Search and Filter Bar */}
@@ -748,7 +852,10 @@ const PublicMap = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search any location (e.g., Bareilly, Agra, Delhi)..."
+                placeholder={viewMode === 'prayagraj' 
+                  ? "Search Prayagraj areas (e.g., Civil Lines, Chowk, Zero Road)..."
+                  : "Search any location (e.g., Bareilly, Agra, Delhi)..."
+                }
                 value={searchQuery}
                 onChange={handleSearch}
                 className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
@@ -838,7 +945,12 @@ const PublicMap = () => {
                       <AlertTriangle className="h-5 w-5" />
                       <div>
                         <p className="font-medium">Location not found in our database</p>
-                        <p className="text-sm">Try searching for major cities like Delhi, Mumbai, Bangalore, etc.</p>
+                        <p className="text-sm">
+                          {viewMode === 'prayagraj'
+                            ? "Try searching for Prayagraj areas like Civil Lines, Chowk, Zero Road, etc."
+                            : "Try searching for major cities like Delhi, Mumbai, Bangalore, etc."
+                          }
+                        </p>
                       </div>
                     </div>
                   )}
@@ -1174,6 +1286,323 @@ const PublicMap = () => {
             </div>
           </motion.div>
         </div>
+
+        {/* Prayagraj Local Map Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="mt-16"
+        >
+          <div className="mb-8">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+              🏛️ Prayagraj (Allahabad) Local Safety Map
+            </h2>
+            <p className="text-gray-600">
+              Detailed safety zones for Prayagraj city - Safe, Moderate, and Risky areas
+            </p>
+          </div>
+
+          {/* Prayagraj Map Filters */}
+          <div className="flex gap-2 flex-wrap mb-6">
+            {[
+              { id: 'all', label: 'All Areas' },
+              { id: 'safe', label: '🟢 Safe Zones' },
+              { id: 'moderate', label: '🟡 Moderate Risk' },
+              { id: 'caution', label: '🔴 Risky Areas' },
+            ].map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => setPrayagrajFilter(filter.id)}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                  prayagrajFilter === filter.id
+                    ? 'bg-primary-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Prayagraj Map */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+              className="lg:col-span-2"
+            >
+              <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div className="relative h-96 md:h-[500px]">
+                  <MapContainer
+                    key={`prayagraj-map-${prayagrajFilter}`}
+                    center={prayagrajMapCenter}
+                    zoom={14}
+                    style={{ height: '100%', width: '100%' }}
+                    scrollWheelZoom={true}
+                    whenCreated={setPrayagrajMapInstance}
+                  >
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+
+                    {/* Prayagraj Safety Zone Markers */}
+                    {filteredPrayagrajZones.map((zone) => (
+                      <Marker
+                        key={zone.id}
+                        position={[zone.lat, zone.lng]}
+                        icon={createCustomIcon(zone.type)}
+                        eventHandlers={{
+                          click: () => handlePrayagrajMapClick(zone)
+                        }}
+                      >
+                        <Popup>
+                          <div className="p-2">
+                            <h4 className="font-bold text-gray-900 mb-1">{zone.name}</h4>
+                            <div className={`inline-block px-2 py-1 rounded text-xs font-semibold mb-2 ${getTypeColor(zone.type)}`}>
+                              {getZoneTypeLabel(zone.type)}
+                            </div>
+                            <p className="text-sm text-gray-600 mb-2">{zone.description}</p>
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center space-x-1">
+                                <Users className="h-3 w-3" />
+                                <span>{zone.volunteers} volunteers</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                <span>{zone.incidents} incidents</span>
+                              </div>
+                            </div>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    ))}
+
+                    {/* Selected Location Marker */}
+                    {prayagrajSelectedLocation && (
+                      <Marker
+                        position={[prayagrajSelectedLocation.lat, prayagrajSelectedLocation.lng]}
+                        icon={createCustomIcon('safe')}
+                      >
+                        <Popup>
+                          <div className="p-2">
+                            <h4 className="font-bold text-gray-900">{prayagrajSelectedLocation.name}</h4>
+                            <p className="text-sm text-gray-600 mt-1">Selected Location</p>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    )}
+
+                    {/* Click to select location */}
+                    <SearchLocation onLocationSelect={handlePrayagrajLocationSelect} />
+                  </MapContainer>
+
+                  {/* Prayagraj Map Legend */}
+                  <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-lg z-[1000]">
+                    <h4 className="font-semibold text-gray-900 mb-2 text-sm">Legend</h4>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 rounded-full bg-green-500" />
+                        <span>Safe Zone</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                        <span>Moderate Risk</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 rounded-full bg-red-500" />
+                        <span>High Caution (Risky)</span>
+                      </div>
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-gray-200 text-xs text-gray-600">
+                      📍 {filteredPrayagrajZones.length} markers
+                    </div>
+                  </div>
+
+                  {/* Prayagraj Map Controls */}
+                  <div className="absolute bottom-4 right-4 flex flex-col space-y-2 z-[1000]">
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => prayagrajMapInstance?.zoomIn()}
+                      className="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50"
+                    >
+                      <span className="text-lg font-bold text-gray-700">+</span>
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => prayagrajMapInstance?.zoomOut()}
+                      className="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50"
+                    >
+                      <span className="text-lg font-bold text-gray-700">−</span>
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => {
+                        navigator.geolocation.getCurrentPosition((pos) => {
+                          handlePrayagrajLocationSelect({
+                            lat: pos.coords.latitude,
+                            lng: pos.coords.longitude,
+                            name: 'Your Location'
+                          });
+                        });
+                      }}
+                      className="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50"
+                    >
+                      <Navigation className="h-5 w-5 text-primary-600" />
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => {
+                        setPrayagrajMapCenter([25.4358, 81.8463]);
+                        setPrayagrajFilter('all');
+                      }}
+                      className="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50"
+                      title="Reset View"
+                    >
+                      <span className="text-xs font-bold text-gray-700">⟲</span>
+                    </motion.button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Prayagraj Sidebar */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.6 }}
+              className="space-y-6"
+            >
+              {/* Safe Zones */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-green-700 flex items-center space-x-2">
+                    <Shield className="h-5 w-5 text-green-600" />
+                    <span>Safe Zones</span>
+                  </h3>
+                  <span className="text-sm text-gray-500">
+                    {prayagrajZones.filter(z => z.type === 'safe').length} areas
+                  </span>
+                </div>
+
+                <motion.div
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className="space-y-2 max-h-48 overflow-y-auto"
+                >
+                  {prayagrajZones.filter(z => z.type === 'safe').slice(0, 5).map((zone) => (
+                    <motion.div
+                      key={zone.id}
+                      variants={itemVariants}
+                      whileHover={{ x: 5, backgroundColor: 'rgba(34, 197, 94, 0.1)' }}
+                      onClick={() => handlePrayagrajMapClick(zone)}
+                      className="p-3 rounded-lg border-2 border-green-300 bg-green-50 cursor-pointer transition-all"
+                    >
+                      <h4 className="font-semibold text-green-800 text-sm">{zone.name}</h4>
+                      <p className="text-xs text-green-600 mt-1">{zone.description}</p>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              </div>
+
+              {/* Moderate Risk Zones */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-yellow-700 flex items-center space-x-2">
+                    <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                    <span>Moderate Risk</span>
+                  </h3>
+                  <span className="text-sm text-gray-500">
+                    {prayagrajZones.filter(z => z.type === 'moderate').length} areas
+                  </span>
+                </div>
+
+                <motion.div
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className="space-y-2 max-h-48 overflow-y-auto"
+                >
+                  {prayagrajZones.filter(z => z.type === 'moderate').slice(0, 5).map((zone) => (
+                    <motion.div
+                      key={zone.id}
+                      variants={itemVariants}
+                      whileHover={{ x: 5, backgroundColor: 'rgba(234, 179, 8, 0.1)' }}
+                      onClick={() => handlePrayagrajMapClick(zone)}
+                      className="p-3 rounded-lg border-2 border-yellow-300 bg-yellow-50 cursor-pointer transition-all"
+                    >
+                      <h4 className="font-semibold text-yellow-800 text-sm">{zone.name}</h4>
+                      <p className="text-xs text-yellow-600 mt-1">{zone.description}</p>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              </div>
+
+              {/* Risky Zones */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-red-700 flex items-center space-x-2">
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                    <span>Risky Areas</span>
+                  </h3>
+                  <span className="text-sm text-gray-500">
+                    {prayagrajZones.filter(z => z.type === 'caution').length} areas
+                  </span>
+                </div>
+
+                <motion.div
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className="space-y-2 max-h-48 overflow-y-auto"
+                >
+                  {prayagrajZones.filter(z => z.type === 'caution').slice(0, 5).map((zone) => (
+                    <motion.div
+                      key={zone.id}
+                      variants={itemVariants}
+                      whileHover={{ x: 5, backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
+                      onClick={() => handlePrayagrajMapClick(zone)}
+                      className="p-3 rounded-lg border-2 border-red-300 bg-red-50 cursor-pointer transition-all"
+                    >
+                      <h4 className="font-semibold text-red-800 text-sm">{zone.name}</h4>
+                      <p className="text-xs text-red-600 mt-1">{zone.description}</p>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl shadow-lg p-6 text-white">
+                <h3 className="text-lg font-bold mb-4">📊 Prayagraj Safety Stats</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold">{prayagrajZones.filter(z => z.type === 'safe').length}</div>
+                    <div className="text-xs opacity-90">Safe Zones</div>
+                  </div>
+                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold">{prayagrajZones.filter(z => z.type === 'moderate').length}</div>
+                    <div className="text-xs opacity-90">Moderate Risk</div>
+                  </div>
+                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold">{prayagrajZones.filter(z => z.type === 'caution').length}</div>
+                    <div className="text-xs opacity-90">Risky Areas</div>
+                  </div>
+                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold">{prayagrajZones.length}</div>
+                    <div className="text-xs opacity-90">Total Areas</div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </motion.div>
       </div>
     </main>
   );

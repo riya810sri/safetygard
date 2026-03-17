@@ -13,7 +13,9 @@ import {
   Sparkles,
   CheckCircle2
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { auth } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 const Home = () => {
   const navigate = useNavigate();

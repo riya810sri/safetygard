@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wifi,
@@ -18,7 +19,9 @@ import {
   Shield,
   Zap,
   Navigation,
-  Clock
+  Clock,
+  Bell,
+  Users
 } from 'lucide-react';
 import Header from './Header';
 import {
@@ -33,18 +36,22 @@ import {
   isDeviceOnline,
   formatUptime
 } from '../services/deviceService';
+import { subscribeToGlobalSOSAlerts } from '../services/firestoreService';
 
 /**
  * Suraksha Device Dashboard Component
  * Real-time IoT device monitoring with live sensor data
  */
-const DeviceDashboard = ({ deviceId = 'SURAKSHA_DEV_001' }) => {
+const DeviceDashboard = () => {
+  const { deviceId } = useParams();
+
   // Device state
   const [deviceData, setDeviceData] = useState(null);
   const [sensors, setSensors] = useState(null);
   const [location, setLocation] = useState(null);
   const [status, setStatus] = useState(null);
   const [sosAlert, setSosAlert] = useState({ active: false });
+  const [globalSosAlerts, setGlobalSosAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -87,8 +94,14 @@ const DeviceDashboard = ({ deviceId = 'SURAKSHA_DEV_001' }) => {
       }
     });
 
+    // Subscribe to global SOS alerts (from all users/devices)
+    const unsubGlobalSOS = subscribeToGlobalSOSAlerts((alerts) => {
+      setGlobalSosAlerts(alerts);
+      console.log('🚨 Global SOS Alerts:', alerts.length);
+    });
+
     // Store unsubscribe functions
-    setUnsubscribeFns([unsubDevice, unsubSensors, unsubLocation, unsubStatus, unsubSOS]);
+    setUnsubscribeFns([unsubDevice, unsubSensors, unsubLocation, unsubStatus, unsubSOS, unsubGlobalSOS]);
 
     // Cleanup on unmount
     return () => {
@@ -516,6 +529,100 @@ const DeviceDashboard = ({ deviceId = 'SURAKSHA_DEV_001' }) => {
             </div>
           </motion.div>
         </div>
+
+        {/* Recent SOS Alerts from Community */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+          className="mb-8"
+        >
+          <div className="bg-white rounded-3xl shadow-xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-red-100 rounded-2xl">
+                <Bell className="w-8 h-8 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-800">Recent SOS Alerts</h3>
+                <p className="text-sm text-gray-500">Live emergency alerts from your area</p>
+              </div>
+              {globalSosAlerts.length > 0 && (
+                <span className="ml-auto px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold animate-pulse">
+                  {globalSosAlerts.length} Active
+                </span>
+              )}
+            </div>
+
+            {globalSosAlerts.length > 0 ? (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {globalSosAlerts.slice(0, 10).map((alert, index) => (
+                  <motion.div
+                    key={alert.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`p-4 rounded-2xl border-2 ${
+                      alert.status === 'active'
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className={`w-3 h-3 rounded-full mt-2 ${
+                          alert.status === 'active' ? 'bg-red-500 animate-pulse' : 'bg-gray-400'
+                        }`} />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <AlertTriangle className={`w-5 h-5 ${
+                              alert.status === 'active' ? 'text-red-600' : 'text-gray-400'
+                            }`} />
+                            <h4 className="font-semibold text-gray-800">
+                              {alert.message || 'SOS Emergency Alert'}
+                            </h4>
+                          </div>
+                          <p className="text-sm text-gray-600">
+                            Status: <span className={`font-semibold ${
+                              alert.status === 'active' ? 'text-red-600' : 'text-gray-500'
+                            }`}>{alert.status}</span>
+                          </p>
+                          {alert.location && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+                              <MapPin className="w-4 h-4" />
+                              <span>
+                                {alert.location.latitude?.toFixed(4)}, {alert.location.longitude?.toFixed(4)}
+                              </span>
+                              <a
+                                href={`https://www.google.com/maps?q=${alert.location.latitude},${alert.location.longitude}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline ml-2"
+                              >
+                                (View on Map)
+                              </a>
+                            </div>
+                          )}
+                          <p className="text-xs text-gray-500 mt-2">
+                            {alert.contactsNotified || 0} contacts notified
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500 whitespace-nowrap ml-4">
+                        {alert.timestamp ? new Date(alert.timestamp).toLocaleString() : 'Just now'}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                <Shield className="w-16 h-16 mx-auto mb-4 text-green-400" />
+                <p className="text-gray-600 font-medium">No active SOS alerts</p>
+                <p className="text-sm text-gray-400 mt-2">All users are safe in your area</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
       </div>
 
       {/* Footer */}

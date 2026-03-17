@@ -1,15 +1,18 @@
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
   collection,
   query,
   where,
   getDocs,
   addDoc,
   serverTimestamp,
-  increment
+  increment,
+  onSnapshot,
+  orderBy,
+  limit
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../firebase";
@@ -106,13 +109,27 @@ export const getEmergencyContacts = async (userId) => {
 // Add SOS alert/incident
 export const addSOSAlert = async (userId, alertData) => {
   try {
+    // Save to user's incidents (for user history)
     const incidentsRef = collection(db, "users", userId, "incidents");
     await addDoc(incidentsRef, {
       ...alertData,
       type: 'sos',
       createdAt: serverTimestamp()
     });
-    console.log("SOS alert saved ✅");
+    
+    // Also save to global SOS alerts collection (for public map and web dashboard)
+    const globalSosRef = collection(db, "sos_alerts");
+    await addDoc(globalSosRef, {
+      userId: userId,
+      message: alertData.message,
+      location: alertData.location,
+      timestamp: alertData.timestamp || new Date().toISOString(),
+      status: alertData.status || 'active',
+      contactsNotified: alertData.contactsNotified || 0,
+      createdAt: serverTimestamp()
+    });
+    
+    console.log("SOS alert saved to user incidents and global collection ✅");
   } catch (error) {
     console.error("Error adding SOS alert:", error);
     throw error;
@@ -301,5 +318,38 @@ export const likePost = async (postId) => {
   } catch (error) {
     console.error("Error liking post:", error);
     throw error;
+  }
+};
+
+// Subscribe to global SOS alerts in real-time
+export const subscribeToGlobalSOSAlerts = (callback, limitCount = 20) => {
+  try {
+    const sosRef = collection(db, "sos_alerts");
+    const q = query(sosRef, orderBy("createdAt", "desc"), limit(limitCount));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const alerts = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        alerts.push({
+          id: doc.id,
+          userId: data.userId,
+          message: data.message || 'Emergency Alert',
+          location: data.location,
+          timestamp: data.timestamp || data.createdAt?.toDate(),
+          status: data.status || 'active',
+          contactsNotified: data.contactsNotified || 0
+        });
+      });
+      callback(alerts);
+    }, (error) => {
+      console.error("Error subscribing to SOS alerts:", error);
+      callback([]);
+    });
+
+    return unsubscribe;
+  } catch (error) {
+    console.error("Error setting up SOS subscription:", error);
+    return () => {};
   }
 };
