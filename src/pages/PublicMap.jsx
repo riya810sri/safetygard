@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { useState, useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import {
   MapPin,
@@ -32,7 +32,7 @@ const createCustomIcon = (type) => {
     moderate: '#eab308',
     caution: '#ef4444'
   };
-  
+
   return L.divIcon({
     className: 'custom-marker',
     html: `
@@ -49,6 +49,40 @@ const createCustomIcon = (type) => {
     iconSize: [30, 30],
     iconAnchor: [15, 30],
     popupAnchor: [0, -30]
+  });
+};
+
+// Bubble-style icons for Prayagraj zones with floating animation
+const createBubbleIcon = (type, size = 'medium') => {
+  const sizes = {
+    small: 24,
+    medium: 32,
+    large: 40
+  };
+
+  const radius = sizes[size];
+  
+  const colors = {
+    safe: '#22c55e',
+    moderate: '#eab308',
+    caution: '#ef4444'
+  };
+
+  return L.divIcon({
+    className: 'bubble-marker',
+    html: `<div style="
+      width: ${radius}px;
+      height: ${radius}px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, ${type === 'safe' ? '#86efac' : type === 'moderate' ? '#fde047' : '#fca5a5'}, ${colors[type]});
+      border: 3px solid white;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      animation: bubble-float 2s ease-in-out infinite;
+      cursor: pointer;
+    "></div>`,
+    iconSize: [radius, radius],
+    iconAnchor: [radius / 2, radius / 2],
+    popupAnchor: [0, -radius / 2]
   });
 };
 
@@ -77,6 +111,167 @@ const PublicMap = () => {
   const [mapInstance, setMapInstance] = useState(null);
   const [recentIncidents, setRecentIncidents] = useState([]);
   const [viewMode, setViewMode] = useState('india'); // 'india' or 'prayagraj'
+  const [showHeaderAlert, setShowHeaderAlert] = useState(false);
+  const [headerAlertMessage, setHeaderAlertMessage] = useState('');
+  const [isSirenPlaying, setIsSirenPlaying] = useState(false);
+  const [audioInitialized, setAudioInitialized] = useState(false);
+  
+  // Create audio ref for siren sound
+  const sirenAudioRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const oscillatorRef = useRef(null);
+  const gainNodeRef = useRef(null);
+  
+  // Initialize audio on component mount
+  useEffect(() => {
+    // Try to load siren.mp3 first
+    sirenAudioRef.current = new Audio('/siren.mp3');
+    if (sirenAudioRef.current) {
+      sirenAudioRef.current.loop = true;
+      sirenAudioRef.current.volume = 0.7;
+      sirenAudioRef.current.preload = 'auto';
+      
+      // Handle audio errors - fallback to Web Audio API
+      sirenAudioRef.current.addEventListener('error', (e) => {
+        console.warn('Siren MP3 not found, using Web Audio API fallback');
+      });
+    }
+    
+    // Auto-initialize audio on first user interaction
+    const initAudio = () => {
+      if (!audioInitialized) {
+        setAudioInitialized(true);
+        
+        // Initialize Web Audio API context
+        if (!audioContextRef.current) {
+          audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        
+        // Try to play MP3 briefly to test
+        if (sirenAudioRef.current) {
+          sirenAudioRef.current.play().then(() => {
+            sirenAudioRef.current.pause();
+            console.log('✅ MP3 siren initialized');
+          }).catch(() => {
+            console.log('Will use Web Audio API fallback');
+          });
+        }
+        
+        console.log('🔊 Audio system initialized');
+        
+        // Remove event listeners after initialization
+        document.removeEventListener('click', initAudio);
+        document.removeEventListener('keydown', initAudio);
+        document.removeEventListener('touchstart', initAudio);
+      }
+    };
+    
+    // Add event listeners for auto-initialization
+    document.addEventListener('click', initAudio);
+    document.addEventListener('keydown', initAudio);
+    document.addEventListener('touchstart', initAudio);
+    
+    return () => {
+      if (sirenAudioRef.current) {
+        sirenAudioRef.current.pause();
+        sirenAudioRef.current = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+      document.removeEventListener('click', initAudio);
+      document.removeEventListener('keydown', initAudio);
+      document.removeEventListener('touchstart', initAudio);
+    };
+  }, []);
+  
+  // Create siren sound using Web Audio API (fallback)
+  const createSirenSound = () => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    const ctx = audioContextRef.current;
+    oscillatorRef.current = ctx.createOscillator();
+    gainNodeRef.current = ctx.createGain();
+    
+    oscillatorRef.current.connect(gainNodeRef.current);
+    gainNodeRef.current.connect(ctx.destination);
+    
+    oscillatorRef.current.type = 'sawtooth';
+    oscillatorRef.current.frequency.value = 600;
+    gainNodeRef.current.gain.value = 0.3;
+    
+    // Create siren effect (frequency modulation)
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 2; // 2 Hz siren cycle
+    
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 400; // Frequency range
+    
+    lfo.connect(lfoGain);
+    lfoGain.connect(oscillatorRef.current.frequency);
+    lfo.start();
+    
+    return { oscillator: oscillatorRef.current, lfo, ctx };
+  };
+  
+  // Play siren sound - AUTOPLAYS when audio is initialized
+  const playSiren = async () => {
+    if (!audioInitialized) {
+      console.warn('Audio not initialized yet - please interact with the page first');
+      return;
+    }
+    
+    if (isSirenPlaying) return;
+    
+    // Try MP3 first
+    if (sirenAudioRef.current) {
+      try {
+        await sirenAudioRef.current.play();
+        setIsSirenPlaying(true);
+        console.log('🔊 Siren playing (MP3)');
+        return;
+      } catch (err) {
+        console.log('MP3 failed, using Web Audio API');
+      }
+    }
+    
+    // Fallback to Web Audio API
+    try {
+      const { oscillator, lfo, ctx } = createSirenSound();
+      oscillator.start();
+      setIsSirenPlaying(true);
+      console.log('🔊 Siren playing (Web Audio API)');
+    } catch (err) {
+      console.error('Siren play error:', err);
+    }
+  };
+  
+  // Stop siren sound
+  const stopSiren = () => {
+    // Stop MP3
+    if (sirenAudioRef.current && isSirenPlaying) {
+      sirenAudioRef.current.pause();
+      sirenAudioRef.current.currentTime = 0;
+    }
+    
+    // Stop Web Audio API
+    if (oscillatorRef.current) {
+      try {
+        oscillatorRef.current.stop();
+        oscillatorRef.current.disconnect();
+        oscillatorRef.current = null;
+      } catch (e) {
+        // Already stopped
+      }
+    }
+    
+    setIsSirenPlaying(false);
+    console.log('🔇 Siren stopped');
+  };
   
   // Prayagraj Local Map State
   const [prayagrajMapCenter, setPrayagrajMapCenter] = useState([25.4358, 81.8463]);
@@ -130,6 +325,37 @@ const PublicMap = () => {
     { id: 10, name: 'India Gate', type: 'safe', volunteers: 40, incidents: 1, lat: 28.6129, lng: 77.2295, keywords: ['india', 'gate', 'monument', 'central'] },
     { id: 11, name: 'Hauz Khas', type: 'safe', volunteers: 48, incidents: 2, lat: 28.5494, lng: 77.1932, keywords: ['hauz', 'khas', 'village', 'south'] },
     { id: 12, name: 'Paharganj', type: 'caution', volunteers: 12, incidents: 15, lat: 28.6433, lng: 77.2194, keywords: ['paharganj', 'market', 'tourist'] },
+    // More Danger Zones (Caution Areas) across India
+    { id: 121, name: 'Seelampur', type: 'caution', volunteers: 8, incidents: 18, lat: 28.6692, lng: 77.2853, keywords: ['seelampur', 'east delhi', 'industrial'], description: 'Industrial area, isolated at night' },
+    { id: 122, name: 'Welcome Colony', type: 'caution', volunteers: 10, incidents: 16, lat: 28.6725, lng: 77.2947, keywords: ['welcome', 'shahdara', 'delhi'], description: 'Dense population, narrow lanes' },
+    { id: 123, name: 'Kasturi Nagar', type: 'caution', volunteers: 14, incidents: 14, lat: 13.0293, lng: 77.6497, keywords: ['kasturi nagar', 'bangalore', 'kalyan nagar'], description: 'Less lighting, be careful at night' },
+    { id: 124, name: 'Byrasandra', type: 'caution', volunteers: 12, incidents: 13, lat: 13.0207, lng: 77.6348, keywords: ['byrasandra', 'bangalore', 'ramamurthy nagar'], description: 'Isolated areas, limited transport' },
+    { id: 125, name: 'Tannery Road', type: 'caution', volunteers: 11, incidents: 15, lat: 13.0067, lng: 77.6177, keywords: ['tannery road', 'bangalore', 'fraser town'], description: 'Industrial zone, avoid late night' },
+    { id: 126, name: 'Garden Reach', type: 'caution', volunteers: 9, incidents: 17, lat: 22.5326, lng: 88.3159, keywords: ['garden reach', 'kolkata', 'port area'], description: 'Port area, less populated' },
+    { id: 127, name: 'Metiabruz', type: 'caution', volunteers: 10, incidents: 16, lat: 22.5189, lng: 88.3098, keywords: ['metiabruz', 'kolkata', 'old area'], description: 'Old area, narrow streets' },
+    { id: 128, name: 'Guptipara', type: 'caution', volunteers: 8, incidents: 14, lat: 23.1667, lng: 88.4167, keywords: ['guptipara', 'hooghly', 'west bengal'], description: 'Remote area, limited connectivity' },
+    { id: 129, name: 'Gulbarga', type: 'caution', volunteers: 13, incidents: 13, lat: 17.1429, lng: 76.8348, keywords: ['gulbarga', 'kalaburagi', 'karnataka'], description: 'Developing area, be cautious' },
+    { id: 130, name: 'Bidar', type: 'caution', volunteers: 11, incidents: 12, lat: 17.9104, lng: 77.5199, keywords: ['bidar', 'karnataka', 'border'], description: 'Border area, limited help' },
+    { id: 131, name: 'Muzaffarpur', type: 'caution', volunteers: 15, incidents: 14, lat: 26.1226, lng: 85.3906, keywords: ['muzaffarpur', 'bihar', 'lychee'], description: 'Crowded market area' },
+    { id: 132, name: 'Bhagalpur', type: 'caution', volunteers: 12, incidents: 13, lat: 25.2425, lng: 86.9842, keywords: ['bhagalpur', 'bihar', 'silk'], description: 'Industrial area, be careful' },
+    { id: 133, name: 'Gaya', type: 'caution', volunteers: 14, incidents: 12, lat: 24.7914, lng: 85.0002, keywords: ['gaya', 'bihar', 'buddhist'], description: 'Pilgrim area, crowded' },
+    { id: 134, name: 'Jamshedpur', type: 'caution', volunteers: 16, incidents: 11, lat: 22.8046, lng: 86.2029, keywords: ['jamshedpur', 'jharkhand', 'tata'], description: 'Industrial city, some risky zones' },
+    { id: 135, name: 'Dhanbad', type: 'caution', volunteers: 13, incidents: 15, lat: 23.7957, lng: 86.4304, keywords: ['dhanbad', 'jharkhand', 'coal'], description: 'Mining area, isolated spots' },
+    { id: 136, name: 'Raipur Old City', type: 'caution', volunteers: 14, incidents: 13, lat: 21.2390, lng: 81.6337, keywords: ['raipur', 'chhattisgarh', 'old city'], description: 'Old city, narrow lanes' },
+    { id: 137, name: 'Bhilai Steel Plant', type: 'caution', volunteers: 15, incidents: 12, lat: 21.2096, lng: 81.3784, keywords: ['bhilai', 'chhattisgarh', 'steel'], description: 'Industrial zone, be cautious' },
+    { id: 138, name: 'Korba', type: 'caution', volunteers: 10, incidents: 14, lat: 22.3595, lng: 82.7501, keywords: ['korba', 'chhattisgarh', 'power'], description: 'Power hub, remote areas' },
+    { id: 139, name: 'Siliguri', type: 'caution', volunteers: 17, incidents: 13, lat: 26.7271, lng: 88.3953, keywords: ['siliguri', 'west bengal', 'darjeeling'], description: 'Tourist transit, be alert' },
+    { id: 140, name: 'Malda', type: 'caution', volunteers: 11, incidents: 14, lat: 25.0096, lng: 88.1406, keywords: ['malda', 'west bengal', 'mango'], description: 'Border area, limited transport' },
+    { id: 141, name: 'Asansol', type: 'caution', volunteers: 13, incidents: 15, lat: 23.6739, lng: 86.9524, keywords: ['asansol', 'west bengal', 'coal'], description: 'Mining area, industrial' },
+    { id: 142, name: 'Durgapur', type: 'caution', volunteers: 14, incidents: 13, lat: 23.5204, lng: 87.3119, keywords: ['durgapur', 'west bengal', 'steel'], description: 'Steel city, some risky zones' },
+    { id: 143, name: 'Howrah', type: 'caution', volunteers: 16, incidents: 14, lat: 22.5958, lng: 88.2636, keywords: ['howrah', 'kolkata', 'bridge'], description: 'Crowded station area' },
+    { id: 144, name: 'Serampore', type: 'caution', volunteers: 12, incidents: 12, lat: 22.7506, lng: 88.3403, keywords: ['serampore', 'west bengal', 'hooghly'], description: 'Old town, narrow streets' },
+    { id: 145, name: 'Barrackpore', type: 'caution', volunteers: 13, incidents: 13, lat: 22.7649, lng: 88.3753, keywords: ['barrackpore', 'kolkata', 'cantonment'], description: 'Cantonment area, be careful' },
+    { id: 146, name: 'Bhatpara', type: 'caution', volunteers: 10, incidents: 15, lat: 22.8697, lng: 88.4021, keywords: ['bhatpara', 'west bengal', 'industrial'], description: 'Industrial area, isolated' },
+    { id: 147, name: 'Kamarhati', type: 'caution', volunteers: 11, incidents: 14, lat: 22.6708, lng: 88.3742, keywords: ['kamarhati', 'kolkata', 'north'], description: 'Dense area, less lighting' },
+    { id: 148, name: 'Madhyamgram', type: 'caution', volunteers: 12, incidents: 13, lat: 22.6963, lng: 88.4486, keywords: ['madhyamgram', 'kolkata', 'airport'], description: 'Airport vicinity, be alert' },
+    { id: 149, name: 'Barasat', type: 'caution', volunteers: 13, incidents: 12, lat: 22.7210, lng: 88.4572, keywords: ['barasat', 'kolkata', 'north 24 parganas'], description: 'Suburban area, limited help' },
+    { id: 150, name: 'Basirhat', type: 'caution', volunteers: 9, incidents: 14, lat: 22.6536, lng: 88.8919, keywords: ['basirhat', 'west bengal', 'border'], description: 'Border area, remote' },
     // Major cities across India
     { id: 13, name: 'Mumbai Central', type: 'safe', volunteers: 85, incidents: 5, lat: 19.0760, lng: 72.8777, keywords: ['mumbai', 'bombay', 'maharashtra'] },
     { id: 14, name: 'Bangalore City', type: 'safe', volunteers: 78, incidents: 3, lat: 12.9716, lng: 77.5946, keywords: ['bangalore', 'bengaluru', 'karnataka'] },
@@ -562,6 +788,8 @@ const PublicMap = () => {
     return zone.type === prayagrajFilter;
   });
 
+  console.log('Prayagraj Filter:', prayagrajFilter, 'Filtered Zones:', filteredPrayagrajZones.length);
+
   const handleLocationSelect = (location) => {
     setSelectedLocation(location);
     setMapCenter([location.lat, location.lng]);
@@ -787,6 +1015,30 @@ const PublicMap = () => {
 
   return (
     <main className="min-h-screen bg-gray-50 pt-24 pb-12">
+      {/* HEADER SOS ALERT - Shows when hovering over risky areas */}
+      {showHeaderAlert && (
+        <motion.div
+          initial={{ opacity: 0, y: -100 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -100 }}
+          className="fixed top-0 left-0 right-0 z-[9999] pointer-events-none"
+        >
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-20">
+            <div className="bg-gradient-to-r from-red-600 via-red-700 to-red-600 text-white rounded-2xl shadow-2xl p-4 border-4 border-red-300 animate-pulse">
+              <div className="flex items-center justify-center gap-4">
+                <span className="text-4xl animate-bounce">🚨</span>
+                <div className="text-center flex-1">
+                  <p className="text-2xl font-black tracking-wider animate-pulse">SOS ALERT - DANGER ZONE!</p>
+                  <p className="text-lg font-bold">{headerAlertMessage}</p>
+                  <p className="text-sm opacity-90 mt-1">High Risk Area - Be Very Careful!</p>
+                </div>
+                <span className="text-4xl animate-bounce">🚨</span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <motion.div
@@ -801,12 +1053,12 @@ const PublicMap = () => {
                 {viewMode === 'prayagraj' ? '📍 Prayagraj (Allahabad) Safety Map' : '🗺️ Suraksha Safety Map'}
               </h1>
               <p className="text-gray-600">
-                {viewMode === 'prayagraj' 
-                  ? 'Local safety zones with real-time risk assessment' 
+                {viewMode === 'prayagraj'
+                  ? 'Local safety zones with real-time risk assessment'
                   : 'Search any location to check its safety status in real-time'}
               </p>
             </div>
-            
+
             {/* View Mode Toggle */}
             <div className="flex items-center gap-2 bg-white rounded-lg p-1 shadow-md">
               <button
@@ -839,13 +1091,16 @@ const PublicMap = () => {
           </div>
         </motion.div>
 
-        {/* Search and Filter Bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-white rounded-xl shadow-lg p-4 mb-8"
-        >
+        {/* India Map Content - Only show when India view mode is selected */}
+        {viewMode === 'india' && (
+          <>
+            {/* Search and Filter Bar */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="bg-white rounded-xl shadow-lg p-4 mb-8"
+            >
           <div className="flex flex-col md:flex-row gap-4">
             {/* Search */}
             <div className="flex-1 relative">
@@ -1010,14 +1265,27 @@ const PublicMap = () => {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
                   
-                  {/* Safety Zone Markers */}
+                  {/* Safety Zone Markers with Header Alert */}
                   {filteredZones.map((zone) => (
                     <Marker
                       key={zone.id}
                       position={[zone.lat, zone.lng]}
                       icon={createCustomIcon(zone.type)}
                       eventHandlers={{
-                        click: () => handleMapClick(zone)
+                        click: () => handleMapClick(zone),
+                        mouseover: (e) => {
+                          // Show HEADER ALERT + play siren for risky areas in India map
+                          if (zone.type === 'caution') {
+                            setHeaderAlertMessage(`${zone.name} - ${zone.volunteers} volunteers, ${zone.incidents} incidents`);
+                            setShowHeaderAlert(true);
+                            playSiren(); // Play siren sound
+                          }
+                        },
+                        mouseout: () => {
+                          // Hide header alert + stop siren on mouse out
+                          setShowHeaderAlert(false);
+                          stopSiren(); // Stop siren sound
+                        }
                       }}
                     >
                       <Popup>
@@ -1026,6 +1294,15 @@ const PublicMap = () => {
                           <div className={`inline-block px-2 py-1 rounded text-xs font-semibold mb-2 ${getTypeColor(zone.type)}`}>
                             {getZoneTypeLabel(zone.type)}
                           </div>
+                          {zone.type === 'caution' && (
+                            <div className="bg-gradient-to-r from-red-600 via-red-700 to-red-600 border-2 border-red-300 rounded-lg p-2 mb-2 animate-pulse">
+                              <p className="text-white font-bold text-xs flex items-center justify-center gap-1">
+                                <span className="text-lg animate-bounce">🚨</span>
+                                DANGER ZONE!
+                                <span className="text-lg animate-bounce">🚨</span>
+                              </p>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between text-sm">
                             <div className="flex items-center space-x-1">
                               <Users className="h-3 w-3" />
@@ -1286,59 +1563,65 @@ const PublicMap = () => {
             </div>
           </motion.div>
         </div>
+          </>
+        )}
 
-        {/* Prayagraj Local Map Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="mt-16"
-        >
-          <div className="mb-8">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-              🏛️ Prayagraj (Allahabad) Local Safety Map
-            </h2>
-            <p className="text-gray-600">
-              Detailed safety zones for Prayagraj city - Safe, Moderate, and Risky areas
-            </p>
-          </div>
+        {/* Prayagraj Local Map Section - Only show when Prayagraj view mode is selected */}
+        {viewMode === 'prayagraj' && (
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="mt-16"
+          >
+           
 
           {/* Prayagraj Map Filters */}
           <div className="flex gap-2 flex-wrap mb-6">
             {[
-              { id: 'all', label: 'All Areas' },
-              { id: 'safe', label: '🟢 Safe Zones' },
-              { id: 'moderate', label: '🟡 Moderate Risk' },
-              { id: 'caution', label: '🔴 Risky Areas' },
+              { id: 'all', label: 'All Areas', color: 'bg-gray-600' },
+              { id: 'safe', label: '🟢 Safe Zones', color: 'bg-green-600' },
+              { id: 'moderate', label: '🟡 Moderate Risk', color: 'bg-yellow-600' },
+              { id: 'caution', label: '🔴 Risky Areas', color: 'bg-red-600' },
             ].map((filter) => (
-              <button
+              <motion.button
                 key={filter.id}
-                onClick={() => setPrayagrajFilter(filter.id)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  console.log('Filter clicked:', filter.id);
+                  setPrayagrajFilter(filter.id);
+                }}
                 className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
                   prayagrajFilter === filter.id
-                    ? 'bg-primary-600 text-white shadow-md'
+                    ? `${filter.color} text-white shadow-md`
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 {filter.label}
-              </button>
+                {prayagrajFilter === filter.id && (
+                  <span className="ml-2 text-xs">✓</span>
+                )}
+              </motion.button>
             ))}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Prayagraj Map */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Prayagraj Map - Now takes 3 columns */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.5 }}
-              className="lg:col-span-2"
+              className="lg:col-span-3"
             >
               <div className="bg-white rounded-xl shadow-lg overflow-hidden">
                 <div className="relative h-96 md:h-[500px]">
                   <MapContainer
                     key={`prayagraj-map-${prayagrajFilter}`}
                     center={prayagrajMapCenter}
-                    zoom={14}
+                    zoom={15}
+                    minZoom={12}
+                    maxZoom={18}
                     style={{ height: '100%', width: '100%' }}
                     scrollWheelZoom={true}
                     whenCreated={setPrayagrajMapInstance}
@@ -1348,37 +1631,163 @@ const PublicMap = () => {
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
 
-                    {/* Prayagraj Safety Zone Markers */}
-                    {filteredPrayagrajZones.map((zone) => (
-                      <Marker
-                        key={zone.id}
-                        position={[zone.lat, zone.lng]}
-                        icon={createCustomIcon(zone.type)}
-                        eventHandlers={{
-                          click: () => handlePrayagrajMapClick(zone)
-                        }}
-                      >
-                        <Popup>
-                          <div className="p-2">
-                            <h4 className="font-bold text-gray-900 mb-1">{zone.name}</h4>
-                            <div className={`inline-block px-2 py-1 rounded text-xs font-semibold mb-2 ${getTypeColor(zone.type)}`}>
-                              {getZoneTypeLabel(zone.type)}
-                            </div>
-                            <p className="text-sm text-gray-600 mb-2">{zone.description}</p>
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center space-x-1">
-                                <Users className="h-3 w-3" />
-                                <span>{zone.volunteers} volunteers</span>
+                    {/* Prayagraj Safety Zone Markers - Bubble Style with Hover Popup Alert */}
+                    {filteredPrayagrajZones.map((zone) => {
+                      // Determine bubble size based on risk level
+                      const bubbleSize = zone.type === 'safe' ? 40 : zone.type === 'moderate' ? 32 : 24;
+                      
+                      const colors = {
+                        safe: '#22c55e',
+                        moderate: '#eab308',
+                        caution: '#ef4444'
+                      };
+                      
+                      return (
+                        <CircleMarker
+                          key={zone.id}
+                          center={[zone.lat, zone.lng]}
+                          radius={bubbleSize / 2}
+                          pathOptions={{
+                            color: 'white',
+                            weight: 3,
+                            fillColor: colors[zone.type],
+                            fillOpacity: 0.9
+                          }}
+                          eventHandlers={{
+                            click: (e) => {
+                              handlePrayagrajMapClick(zone);
+                              e.target.openPopup();
+                            },
+                            mouseover: (e) => {
+                              const target = e.originalEvent.target;
+                              target.style.cursor = 'pointer';
+                              target.style.filter = 'brightness(1.2)';
+                              
+                              // Show HEADER ALERT + play siren + popup on hover for risky areas
+                              if (zone.type === 'caution') {
+                                // Show header alert
+                                setHeaderAlertMessage(`${zone.name} - ${zone.description}`);
+                                setShowHeaderAlert(true);
+                                playSiren(); // Play siren sound
+                                
+                                // Show map popup too
+                                const sosPopup = `
+                                  <div style="
+                                    background: linear-gradient(135deg, #dc2626, #991b1b);
+                                    color: white;
+                                    padding: 20px;
+                                    border-radius: 15px;
+                                    text-align: center;
+                                    min-width: 280px;
+                                    border: 4px solid #fca5a5;
+                                    box-shadow: 0 8px 40px rgba(220, 38, 38, 0.8);
+                                    animation: sos-alert-flash 1s ease-in-out infinite;
+                                  ">
+                                    <style>
+                                      @keyframes sos-alert-flash {
+                                        0%, 100% { 
+                                          transform: scale(1);
+                                          box-shadow: 0 8px 40px rgba(220, 38, 38, 0.8);
+                                        }
+                                        50% { 
+                                          transform: scale(1.08);
+                                          box-shadow: 0 12px 60px rgba(220, 38, 38, 1);
+                                        }
+                                      }
+                                    </style>
+                                    <div style="font-size: 40px; margin-bottom: 10px; animation: sos-shake 0.5s ease-in-out infinite;">🚨 🚨 🚨</div>
+                                    <style>
+                                      @keyframes sos-shake {
+                                        0%, 100% { transform: rotate(-10deg); }
+                                        50% { transform: rotate(10deg); }
+                                      }
+                                    </style>
+                                    <div style="font-size: 20px; font-weight: 900; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 2px; background: rgba(255,255,255,0.2); padding: 10px; border-radius: 10px;">${zone.name}</div>
+                                    <div style="font-size: 22px; font-weight: 900; background: white; color: #dc2626; padding: 12px; border-radius: 10px; margin: 10px 0; animation: sos-pulse 0.8s ease-in-out infinite;">⚠️ SOS ALERT ⚠️</div>
+                                    <style>
+                                      @keyframes sos-pulse {
+                                        0%, 100% { opacity: 1; transform: scale(1); }
+                                        50% { opacity: 0.9; transform: scale(1.05); }
+                                      }
+                                    </style>
+                                    <div style="font-size: 14px; font-weight: 700; background: rgba(255,255,255,0.15); padding: 8px; border-radius: 8px; margin-top: 10px;">🔴 DANGER ZONE</div>
+                                    <div style="font-size: 13px; margin-top: 15px; opacity: 0.95; font-weight: 600; border-top: 2px solid rgba(255,255,255,0.3); padding-top: 12px;">📍 ${zone.description}</div>
+                                    <div style="display: flex; justify-content: space-around; margin-top: 12px; font-size: 12px; font-weight: 600;">
+                                      <span>👥 ${zone.volunteers} volunteers</span>
+                                      <span>⚠️ ${zone.incidents} incidents</span>
+                                    </div>
+                                  </div>
+                                `;
+                                e.target.bindPopup(sosPopup, {
+                                  closeButton: false,
+                                  autoClose: false,
+                                  closeOnClick: false
+                                }).openPopup();
+                              }
+                            },
+                            mouseout: (e) => {
+                              const target = e.originalEvent.target;
+                              target.style.filter = 'brightness(1)';
+                              // Hide header alert + stop siren on mouse out
+                              if (zone.type === 'caution') {
+                                setShowHeaderAlert(false);
+                                stopSiren(); // Stop siren sound
+                                e.target.closePopup();
+                              }
+                            }
+                          }}
+                          className="bubble-marker"
+                        >
+                          <Popup>
+                            <div className="p-2 min-w-[200px]">
+                              <h4 className="font-bold text-gray-900 mb-1">{zone.name}</h4>
+                              <div className={`inline-block px-2 py-1 rounded text-xs font-semibold mb-2 ${getTypeColor(zone.type)}`}>
+                                {getZoneTypeLabel(zone.type)}
                               </div>
-                              <div className="flex items-center space-x-1">
-                                <AlertTriangle className="h-3 w-3" />
-                                <span>{zone.incidents} incidents</span>
+                              {zone.type === 'caution' && (
+                                <div className="relative bg-gradient-to-r from-red-600 via-red-700 to-red-600 border-4 border-red-300 rounded-xl p-4 mb-2 overflow-hidden">
+                                  {/* Ping animation like SOS button */}
+                                  <div className="absolute inset-0 bg-red-400 animate-ping opacity-20" />
+                                  
+                                  {/* Flashing background animation */}
+                                  <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-red-600 to-red-500 animate-pulse opacity-50" />
+                                  
+                                  {/* Content */}
+                                  <div className="relative z-10">
+                                    <div className="flex items-center justify-center gap-2 mb-2">
+                                      <span className="text-3xl animate-bounce">🚨</span>
+                                      <span className="text-white font-black text-lg tracking-wider">SOS ALERT</span>
+                                      <span className="text-3xl animate-bounce">🚨</span>
+                                    </div>
+                                    
+                                    <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 mb-2">
+                                      <p className="text-white font-bold text-center text-sm">⚠️ DANGER ZONE! ⚠️</p>
+                                    </div>
+                                    
+                                    <p className="text-red-100 text-xs text-center font-semibold flex items-center justify-center gap-1">
+                                      <span className="w-2 h-2 bg-red-300 rounded-full animate-ping" />
+                                      High Risk Area - Be Very Careful!
+                                      <span className="w-2 h-2 bg-red-300 rounded-full animate-ping" />
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                              <p className="text-sm text-gray-600 mb-2">{zone.description}</p>
+                              <div className="flex items-center justify-between text-sm">
+                                <div className="flex items-center space-x-1">
+                                  <Users className="h-3 w-3" />
+                                  <span>{zone.volunteers} volunteers</span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <span>{zone.incidents} incidents</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </Popup>
-                      </Marker>
-                    ))}
+                          </Popup>
+                        </CircleMarker>
+                      );
+                    })}
 
                     {/* Selected Location Marker */}
                     {prayagrajSelectedLocation && (
@@ -1399,25 +1808,25 @@ const PublicMap = () => {
                     <SearchLocation onLocationSelect={handlePrayagrajLocationSelect} />
                   </MapContainer>
 
-                  {/* Prayagraj Map Legend */}
+                  {/* Prayagraj Map Legend - Bubble Style */}
                   <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-lg z-[1000]">
                     <h4 className="font-semibold text-gray-900 mb-2 text-sm">Legend</h4>
                     <div className="space-y-2 text-xs">
                       <div className="flex items-center space-x-2">
-                        <div className="w-3 h-3 rounded-full bg-green-500" />
-                        <span>Safe Zone</span>
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-green-400 to-green-600 border-2 border-white shadow-md" />
+                        <span>🟢 Safe Zone</span>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                        <span>Moderate Risk</span>
+                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 border-2 border-white shadow-md" />
+                        <span>🟡 Moderate Risk</span>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <div className="w-3 h-3 rounded-full bg-red-500" />
-                        <span>High Caution (Risky)</span>
+                        <div className="w-3 h-3 rounded-full bg-gradient-to-br from-red-400 to-red-600 border-2 border-white shadow-md" />
+                        <span>🔴 Risky Area</span>
                       </div>
                     </div>
                     <div className="mt-2 pt-2 border-t border-gray-200 text-xs text-gray-600">
-                      📍 {filteredPrayagrajZones.length} markers
+                      📍 Showing {filteredPrayagrajZones.length} of {prayagrajZones.length} areas
                     </div>
                   </div>
 
@@ -1472,137 +1881,74 @@ const PublicMap = () => {
               </div>
             </motion.div>
 
-            {/* Prayagraj Sidebar */}
+            {/* 📊 Prayagraj Safety Stats - RIGHT SIDE OF MAP */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.6 }}
-              className="space-y-6"
+              transition={{ delay: 0.6 }}
+              className="lg:col-span-1"
             >
-              {/* Safe Zones */}
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-green-700 flex items-center space-x-2">
-                    <Shield className="h-5 w-5 text-green-600" />
-                    <span>Safe Zones</span>
-                  </h3>
-                  <span className="text-sm text-gray-500">
-                    {prayagrajZones.filter(z => z.type === 'safe').length} areas
-                  </span>
+              <div className="bg-gradient-to-br from-green-50 via-yellow-50 to-red-50 rounded-2xl shadow-xl p-6 border-2 border-gray-200 h-full">
+                <h3 className="text-xl font-bold text-gray-900 text-center mb-6">
+                  📊 Prayagraj Safety Stats
+                </h3>
+                <div className="space-y-4">
+                  {/* Safe Zones */}
+                  <motion.div
+                    whileHover={{ scale: 1.05, x: 5 }}
+                    className="bg-gradient-to-br from-green-400 to-green-600 rounded-xl p-4 text-white text-center shadow-lg cursor-pointer"
+                  >
+                    <div className="text-4xl font-bold mb-1">
+                      {prayagrajZones.filter(z => z.type === 'safe').length}
+                    </div>
+                    <div className="text-sm font-medium opacity-90">🟢 Safe Zones</div>
+                  </motion.div>
+
+                  {/* Moderate Risk */}
+                  <motion.div
+                    whileHover={{ scale: 1.05, x: 5 }}
+                    className="bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-xl p-4 text-white text-center shadow-lg cursor-pointer"
+                  >
+                    <div className="text-4xl font-bold mb-1">
+                      {prayagrajZones.filter(z => z.type === 'moderate').length}
+                    </div>
+                    <div className="text-sm font-medium opacity-90">🟡 Moderate Risk</div>
+                  </motion.div>
+
+                  {/* Risky Areas */}
+                  <motion.div
+                    whileHover={{ scale: 1.05, x: 5 }}
+                    className="bg-gradient-to-br from-red-400 to-red-600 rounded-xl p-4 text-white text-center shadow-lg cursor-pointer"
+                  >
+                    <div className="text-4xl font-bold mb-1">
+                      {prayagrajZones.filter(z => z.type === 'caution').length}
+                    </div>
+                    <div className="text-sm font-medium opacity-90">🔴 Risky Areas</div>
+                  </motion.div>
+
+                  {/* Total Areas */}
+                  <motion.div
+                    whileHover={{ scale: 1.05, x: 5 }}
+                    className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl p-4 text-white text-center shadow-lg cursor-pointer"
+                  >
+                    <div className="text-4xl font-bold mb-1">
+                      {prayagrajZones.length}
+                    </div>
+                    <div className="text-sm font-medium opacity-90">📍 Total Areas</div>
+                  </motion.div>
                 </div>
 
-                <motion.div
-                  variants={containerVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="space-y-2 max-h-48 overflow-y-auto"
-                >
-                  {prayagrajZones.filter(z => z.type === 'safe').slice(0, 5).map((zone) => (
-                    <motion.div
-                      key={zone.id}
-                      variants={itemVariants}
-                      whileHover={{ x: 5, backgroundColor: 'rgba(34, 197, 94, 0.1)' }}
-                      onClick={() => handlePrayagrajMapClick(zone)}
-                      className="p-3 rounded-lg border-2 border-green-300 bg-green-50 cursor-pointer transition-all"
-                    >
-                      <h4 className="font-semibold text-green-800 text-sm">{zone.name}</h4>
-                      <p className="text-xs text-green-600 mt-1">{zone.description}</p>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              </div>
-
-              {/* Moderate Risk Zones */}
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-yellow-700 flex items-center space-x-2">
-                    <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                    <span>Moderate Risk</span>
-                  </h3>
-                  <span className="text-sm text-gray-500">
-                    {prayagrajZones.filter(z => z.type === 'moderate').length} areas
-                  </span>
-                </div>
-
-                <motion.div
-                  variants={containerVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="space-y-2 max-h-48 overflow-y-auto"
-                >
-                  {prayagrajZones.filter(z => z.type === 'moderate').slice(0, 5).map((zone) => (
-                    <motion.div
-                      key={zone.id}
-                      variants={itemVariants}
-                      whileHover={{ x: 5, backgroundColor: 'rgba(234, 179, 8, 0.1)' }}
-                      onClick={() => handlePrayagrajMapClick(zone)}
-                      className="p-3 rounded-lg border-2 border-yellow-300 bg-yellow-50 cursor-pointer transition-all"
-                    >
-                      <h4 className="font-semibold text-yellow-800 text-sm">{zone.name}</h4>
-                      <p className="text-xs text-yellow-600 mt-1">{zone.description}</p>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              </div>
-
-              {/* Risky Zones */}
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-red-700 flex items-center space-x-2">
-                    <AlertTriangle className="h-5 w-5 text-red-600" />
-                    <span>Risky Areas</span>
-                  </h3>
-                  <span className="text-sm text-gray-500">
-                    {prayagrajZones.filter(z => z.type === 'caution').length} areas
-                  </span>
-                </div>
-
-                <motion.div
-                  variants={containerVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="space-y-2 max-h-48 overflow-y-auto"
-                >
-                  {prayagrajZones.filter(z => z.type === 'caution').slice(0, 5).map((zone) => (
-                    <motion.div
-                      key={zone.id}
-                      variants={itemVariants}
-                      whileHover={{ x: 5, backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
-                      onClick={() => handlePrayagrajMapClick(zone)}
-                      className="p-3 rounded-lg border-2 border-red-300 bg-red-50 cursor-pointer transition-all"
-                    >
-                      <h4 className="font-semibold text-red-800 text-sm">{zone.name}</h4>
-                      <p className="text-xs text-red-600 mt-1">{zone.description}</p>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              </div>
-
-              {/* Quick Stats */}
-              <div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl shadow-lg p-6 text-white">
-                <h3 className="text-lg font-bold mb-4">📊 Prayagraj Safety Stats</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold">{prayagrajZones.filter(z => z.type === 'safe').length}</div>
-                    <div className="text-xs opacity-90">Safe Zones</div>
-                  </div>
-                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold">{prayagrajZones.filter(z => z.type === 'moderate').length}</div>
-                    <div className="text-xs opacity-90">Moderate Risk</div>
-                  </div>
-                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold">{prayagrajZones.filter(z => z.type === 'caution').length}</div>
-                    <div className="text-xs opacity-90">Risky Areas</div>
-                  </div>
-                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold">{prayagrajZones.length}</div>
-                    <div className="text-xs opacity-90">Total Areas</div>
-                  </div>
+                {/* Filter Info */}
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <p className="text-xs text-gray-600 text-center">
+                    📍 Showing <span className="font-bold">{filteredPrayagrajZones.length}</span> of {prayagrajZones.length} areas
+                  </p>
                 </div>
               </div>
             </motion.div>
           </div>
         </motion.div>
+        )}
       </div>
     </main>
   );

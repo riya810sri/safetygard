@@ -49,6 +49,69 @@
   }
 }
 
+/* Bubble style for map markers - COMPLETELY STABLE, NO ANIMATION */
+.leaflet-interactive.bubble-marker {
+  transition: filter 0.15s ease;
+}
+
+.leaflet-interactive.bubble-marker:hover {
+  cursor: pointer;
+  filter: brightness(1.15);
+}
+
+/* Popup styling - STABLE, NO ANIMATION */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-content,
+.leaflet-zoom-animated,
+.leaflet-interactive {
+  animation: none !important;
+  transition: none !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 10px !important;
+}
+
+.leaflet-popup-content {
+  line-height: 1.4 !important;
+  margin: 0 !important;
+  width: auto !important;
+  min-width: 180px !important;
+}
+
+/* Danger zone tooltip styling */
+.leaflet-tooltip.danger-tooltip {
+  background: linear-gradient(135deg, #fee2e2, #fecaca);
+  border: 3px solid #dc2626 !important;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-weight: bold;
+  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.5);
+  font-size: 13px;
+  text-align: center;
+  min-width: 150px;
+}
+
+.leaflet-tooltip.danger-tooltip:before {
+  border-right-color: #dc2626 !important;
+}
+
+.leaflet-tooltip.zone-tooltip {
+  background: white;
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  font-size: 12px;
+  text-align: center;
+  min-width: 120px;
+}
+
+.leaflet-tooltip.zone-tooltip:before {
+  border-right-color: #3b82f6;
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;

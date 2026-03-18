@@ -14,7 +14,7 @@ const SAFE_PLACE_CATEGORIES = [
   { id: "police", name: "Police Station", icon: Shield, color: "blue", keywords: ["police", "thana", "station", "cop"] },
   { id: "hospital", name: "Hospital", icon: Hospital, color: "red", keywords: ["hospital", "medical", "clinic", "health", "emergency"] },
   { id: "women_help", name: "Women Help Desk", icon: Building2, color: "purple", color2: "pink", keywords: ["women", "help", "desk", "shelter"] },
-  { id: "metro", name: "Metro/Train Station", icon: Navigation, color: "green", keywords: ["metro", "train", "station", "railway"] },
+  { id: "railway", name: "Railway Station", icon: Navigation, color: "green", keywords: ["railway", "train", "station", "junction"] },
 ];
 
 // Mock data for safe places (in production, use Google Places API)
@@ -104,28 +104,17 @@ const getSafePlacesNearby = (lat, lng, category) => {
         lng: lng - 0.008
       }
     ],
-    metro: [
+    railway: [
       {
         id: 8,
-        name: "Central Metro Station",
-        address: "Metro Line 1",
+        name: "Nearest Railway Station",
+        address: "Station Road, City Center",
         distance: "0.5 km",
-        phone: "N/A",
+        phone: "139",
         rating: 4.3,
-        open24Hours: false,
+        open24Hours: true,
         lat: lat + 0.005,
         lng: lng + 0.005
-      },
-      {
-        id: 9,
-        name: "Railway Junction",
-        address: "Station Road",
-        distance: "3.0 km",
-        phone: "139",
-        rating: 4.0,
-        open24Hours: true,
-        lat: lat - 0.02,
-        lng: lng + 0.01
       }
     ]
   };
@@ -240,7 +229,7 @@ export default function SafePlaces() {
       {/* Floating Safe Places Button */}
       <motion.button
         onClick={handleOpen}
-        className="fixed bottom-32 right-4 sm:right-6 z-[9999] flex items-center justify-center w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-full shadow-2xl transition-all overflow-hidden border-2 border-white/20"
+        className="fixed bottom-32 right-4 sm:right-6 z-[9997] flex items-center justify-center w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-full shadow-2xl transition-all overflow-hidden border-2 border-white/20"
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         initial={{ scale: 0 }}
