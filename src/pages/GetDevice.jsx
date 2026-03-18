@@ -60,7 +60,7 @@ const GetDevice = () => {
       price: '₹1,499',
       originalPrice: '₹2,499',
       discount: '40% OFF',
-      features: ['SOS Alert Button', 'GPS Tracking', '7-Day Battery', 'Water Resistant'],
+      features: ['SOS Alert Button', 'GPS Tracking', '7-Day Battery', 'basic community support'],
       popular: false,
       color: 'from-blue-500 to-blue-600'
     },
@@ -70,17 +70,17 @@ const GetDevice = () => {
       price: '₹2,499',
       originalPrice: '₹3,999',
       discount: '38% OFF',
-      features: ['Everything in Basic', 'Fall Detection', 'Two-Way Calling', 'Priority Support', 'Extended Warranty'],
+      features: ['Everything in Basic', 'Fall Detection', 'geo fencing','Two-Way Calling', 'Priority Support', 'Extended Warranty'],
       popular: true,
       color: 'from-purple-500 to-pink-500'
     },
     {
       id: 'family',
-      name: 'Suraksha Family',
+      name: 'Suraksha Pro++ ',
       price: '₹4,499',
       originalPrice: '₹7,497',
       discount: '40% OFF',
-      features: ['3 Devices Pack', 'Family Dashboard', 'Group Alerts', '24/7 Support', 'Free Replacement'],
+      features: ['Everything in Pro', 'AI  Powered geo fencing', 'Heavy community support', '24/7 Support', 'Free Replacement',],
       popular: false,
       color: 'from-green-500 to-emerald-500'
     }
