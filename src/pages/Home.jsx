@@ -113,10 +113,9 @@ const Home = () => {
   return (
     <main className="min-h-screen">
       {/* Hero Section - Enhanced */}
-      <section className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 pt-32 pb-24 overflow-hidden">
+      <section className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 pt-20 pb-24 overflow-hidden">
         {/* Hacker background image */}
-        <div className="absolute inset-0 bg-[url('/hack.jpg')] bg-cover bg-center opacity-30 -z-10"></div>
-        
+        <div className="absolute inset-0 bg-[url('/back.jpg')] bg-cover bg-center opacity-70"></div>
         {/* Animated Background Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{
@@ -126,53 +125,53 @@ const Home = () => {
         </div>
 
         {/* Animated background decoration orbs */}
-        <motion.div 
-          animate={{ 
+        <motion.div
+          animate={{
             scale: [1, 1.1, 1],
             opacity: [0.2, 0.3, 0.2]
           }}
-          transition={{ 
-            duration: 4, 
+          transition={{
+            duration: 4,
             repeat: Infinity,
             ease: 'easeInOut'
           }}
-          className="absolute top-20 right-10 w-72 h-72 bg-blue-300 rounded-full blur-3xl opacity-20" 
+          className="absolute top-20 right-10 w-72 h-72 bg-blue-300 rounded-full blur-3xl opacity-20"
         />
-        <motion.div 
-          animate={{ 
+        <motion.div
+          animate={{
             scale: [1, 1.2, 1],
             opacity: [0.2, 0.35, 0.2]
           }}
-          transition={{ 
-            duration: 5, 
+          transition={{
+            duration: 5,
             repeat: Infinity,
             ease: 'easeInOut',
             delay: 1
           }}
-          className="absolute bottom-10 left-10 w-96 h-96 bg-purple-300 rounded-full blur-3xl opacity-20" 
+          className="absolute bottom-10 left-10 w-96 h-96 bg-purple-300 rounded-full blur-3xl opacity-20"
         />
-        <motion.div 
-          animate={{ 
+        <motion.div
+          animate={{
             scale: [1, 1.15, 1],
             opacity: [0.15, 0.25, 0.15]
           }}
-          transition={{ 
-            duration: 6, 
+          transition={{
+            duration: 6,
             repeat: Infinity,
             ease: 'easeInOut',
             delay: 2
           }}
-          className="absolute top-1/2 left-1/2 w-80 h-80 bg-pink-300 rounded-full blur-3xl opacity-15" 
+          className="absolute top-1/2 left-1/2 w-80 h-80 bg-pink-300 rounded-full blur-3xl opacity-15"
         />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="flex flex-col lg:flex-row items-center justify-center gap-10 lg:gap-16">
-            {/* Hero Image - Enhanced with floating animation */}
-            <motion.div 
+          <div className="flex flex-col items-end justify-end gap-4">
+            {/* Hero Image - Positioned at navbar logo area */}
+            <motion.div
               variants={heroImageVariants}
               initial="hidden"
               animate="visible"
-              className="flex-shrink-0"
+              className="flex-shrink-0 flex flex-col items-center"
             >
               <motion.div
                 animate={floatingAnimation}
@@ -183,32 +182,32 @@ const Home = () => {
                 <img
                   src="/ws png.png"
                   alt="Suraksha Safety"
-                  className="relative w-64 h-64 md:w-80 md:h-80 lg:w-96 lg:h-96 object-contain drop-shadow-2xl"
+                  className="relative w-56 h-56 md:w-72 md:h-72 lg:w-80 lg:h-80 object-contain drop-shadow-2xl"
                   style={{ willChange: 'transform' }}
                 />
               </motion.div>
             </motion.div>
 
-            {/* Text Content - Enhanced */}
+            {/* Text Content - All Right Aligned */}
             <motion.div
-              className="text-center lg:text-left max-w-2xl"
+              className="text-right max-w-4xl mx-2 -mt-8"
               variants={containerVariants}
               initial="hidden"
               animate="visible"
             >
               {/* Badge with sparkle */}
-              <motion.div 
+              <motion.div
                 variants={heroTextVariants}
-                className="inline-flex items-center space-x-2 bg-white/20 backdrop-blur-md px-5 py-2.5 rounded-full mb-6 border border-white/30 shadow-lg"
+                className="inline-flex items-center space-x-2 bg-white/20 backdrop-blur-md px-5 py-2.5 rounded-full mb-3 border border-white/30 shadow-lg"
               >
                 <Sparkles className="h-4 w-4 text-yellow-300" />
                 <span className="text-white font-semibold text-sm tracking-wide">#1 Safety App</span>
               </motion.div>
 
               {/* Main Heading - Enhanced typography */}
-              <motion.h1 
+              <motion.h1
                 variants={heroTextVariants}
-                className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight tracking-tight"
+                className="text-4xl md:text-5xl lg:text-6xl font-bold mb-3 leading-tight tracking-tight"
               >
                 <span className="text-white drop-shadow-lg">
                   EMPOWER YOUR
@@ -220,17 +219,17 @@ const Home = () => {
               </motion.h1>
 
               {/* Subheading */}
-              <motion.p 
+              <motion.p
                 variants={heroTextVariants}
-                className="text-lg md:text-xl text-primary-100 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed"
+                className="text-lg md:text-xl text-primary-100 mb-6 max-w-xl ml-auto leading-relaxed"
               >
                 Experience real-time SOS alerts, GPS tracking, and community support, all at your fingertips.
               </motion.p>
 
               {/* CTA Buttons - Enhanced */}
-              <motion.div 
+              <motion.div
                 variants={heroTextVariants}
-                className="flex flex-col sm:flex-row justify-center lg:justify-start items-center gap-4"
+                className="flex flex-col sm:flex-row justify-end items-center gap-4"
               >
                 <motion.button
                   whileHover={{ scale: 1.05, boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}

@@ -231,7 +231,8 @@ const MyDevices = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {devices.map((device, index) => {
               const status = deviceStatuses[device.id];
-              const online = status ? isDeviceOnline(status.lastUpdate) : false;
+              // Use status.online if available, otherwise fallback to isDeviceOnline check
+              const online = status?.online !== undefined ? status.online : (status ? isDeviceOnline(status.lastUpdate) : false);
               
               return (
                 <motion.div

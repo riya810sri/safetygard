@@ -1,6 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Users,
   Search,
   MessageSquare,
   Heart,
@@ -9,9 +8,9 @@ import {
   Shield,
   Star,
   TrendingUp,
-  Filter,
   Plus,
-  X
+  X,
+  CheckCircle
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -33,20 +32,15 @@ const Community = () => {
     { id: 5, title: 'New features request: Voice-activated SOS', author: 'Karan P.', replies: 23, likes: 78, category: 'feedback', pinned: false },
   ];
 
-  const volunteers = [
-    { id: 1, name: 'Dr. Anjali Mehta', specialty: 'Medical Professional', rating: 4.9, helped: 234, location: 'Delhi', available: true, image: 'https://i.pravatar.cc/150?img=1' },
-    { id: 2, name: 'Vikram Singh', specialty: 'Self Defense Trainer', rating: 4.8, helped: 189, location: 'Gurgaon', available: true, image: 'https://i.pravatar.cc/150?img=11' },
-    { id: 3, name: 'Sneha Reddy', specialty: 'Counselor', rating: 4.9, helped: 312, location: 'Bangalore', available: false, image: 'https://i.pravatar.cc/150?img=5' },
-    { id: 4, name: 'Arjun Kapoor', specialty: 'First Aid Expert', rating: 4.7, helped: 156, location: 'Mumbai', available: true, image: 'https://i.pravatar.cc/150?img=12' },
-    { id: 5, name: 'Kavita Desai', specialty: 'Legal Advisor', rating: 4.8, helped: 201, location: 'Pune', available: true, image: 'https://i.pravatar.cc/150?img=9' },
-    { id: 6, name: 'Rohan Malhotra', specialty: 'Security Expert', rating: 4.9, helped: 278, location: 'Delhi', available: false, image: 'https://i.pravatar.cc/150?img=13' },
-  ];
-
-  const stats = [
-    { icon: Users, value: '10K+', label: 'Community Members' },
-    { icon: Heart, value: '5K+', label: 'Volunteers' },
-    { icon: MessageSquare, value: '50K+', label: 'Discussions' },
-    { icon: Award, value: '1K+', label: 'Success Stories' },
+  const topRiders = [
+    { id: 1, name: 'Rajesh Kumar', company: 'Uber', rating: 4.97, trips: '5,234', badge: 'Platinum', image: 'https://i.pravatar.cc/150?img=11', specialty: 'Night Safety Expert', verified: true, years: 5 },
+    { id: 2, name: 'Amit Sharma', company: 'Rapido', rating: 4.94, trips: '3,891', badge: 'Gold', image: 'https://i.pravatar.cc/150?img=12', specialty: 'Route Knowledge', verified: true, years: 3 },
+    { id: 3, name: 'Suresh Yadav', company: 'Swiggy', rating: 4.91, trips: '8,456', badge: 'Gold', image: 'https://i.pravatar.cc/150?img=13', specialty: 'Fast & Safe Delivery', verified: true, years: 4 },
+    { id: 4, name: 'Mohd. Irfan', company: 'Zomato', rating: 4.93, trips: '4,123', badge: 'Gold', image: 'https://i.pravatar.cc/150?img=14', specialty: 'Area Expert', verified: true, years: 3 },
+    { id: 5, name: 'Vikram Singh', company: 'Ola', rating: 4.89, trips: '6,789', badge: 'Silver', image: '/boy2.jpg', specialty: 'Women Safety Champion', verified: true, years: 6 },
+    { id: 6, name: 'Arjun Reddy', company: 'Uber', rating: 4.96, trips: '4,567', badge: 'Platinum', image: '/boy1.avif', specialty: 'Emergency Response', verified: true, years: 4 },
+    { id: 7, name: 'Karan Patel', company: 'Rapido', rating: 4.88, trips: '2,345', badge: 'Silver', image: 'https://i.pravatar.cc/150?img=17', specialty: 'Safe Driving', verified: true, years: 2 },
+    { id: 8, name: 'Rahul Verma', company: 'Swiggy', rating: 4.95, trips: '7,890', badge: 'Gold', image: 'https://i.pravatar.cc/150?img=18', specialty: 'Night Delivery Expert', verified: true, years: 5 },
   ];
 
   const categories = [
@@ -103,29 +97,98 @@ const Community = () => {
           </p>
         </motion.div>
 
-        {/* Stats */}
+        {/* Top Rated Riders Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12"
+          className="mb-12"
         >
-          {stats.map((stat, index) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: index * 0.1 }}
-              whileHover={{ y: -5 }}
-              className="bg-white rounded-xl shadow-lg p-6 text-center"
-            >
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-primary-100 rounded-full mb-3">
-                <stat.icon className="h-6 w-6 text-primary-600" />
-              </div>
-              <div className="text-3xl font-bold text-primary-600 mb-1">{stat.value}</div>
-              <div className="text-gray-600 text-sm">{stat.label}</div>
-            </motion.div>
-          ))}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
+                🏆 Top Rated Riders
+              </h2>
+              <p className="text-gray-600 mt-1">Verified safe drivers from Uber, Ola, Rapido, Swiggy & Zomato</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {topRiders.map((rider, index) => (
+              <motion.div
+                key={rider.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ y: -5, scale: 1.02 }}
+                className="bg-white rounded-2xl shadow-lg p-5 border-2 border-transparent hover:border-primary-200 transition-all cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="relative">
+                    <img
+                      src={rider.image}
+                      alt={rider.name}
+                      className="w-16 h-16 rounded-full object-cover border-3 border-primary-100"
+                    />
+                    <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow">
+                      {rider.badge === 'Platinum' && (
+                        <div className="w-6 h-6 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center">
+                          <Star className="w-3 h-3 text-white fill-white" />
+                        </div>
+                      )}
+                      {rider.badge === 'Gold' && (
+                        <div className="w-6 h-6 bg-gradient-to-br from-amber-300 to-amber-500 rounded-full flex items-center justify-center">
+                          <Star className="w-3 h-3 text-white fill-white" />
+                        </div>
+                      )}
+                      {rider.badge === 'Silver' && (
+                        <div className="w-6 h-6 bg-gradient-to-br from-gray-300 to-gray-500 rounded-full flex items-center justify-center">
+                          <Star className="w-3 h-3 text-white fill-white" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-1 bg-green-50 px-2 py-1 rounded-full">
+                    <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                    <span className="text-sm font-bold text-green-700">{rider.rating}</span>
+                  </div>
+                </div>
+
+                <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center">
+                  {rider.name}
+                  {rider.verified && (
+                    <CheckCircle className="w-4 h-4 text-blue-500 ml-1.5" />
+                  )}
+                </h3>
+                
+                <div className="flex items-center space-x-2 mb-2">
+                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                    rider.company === 'Uber' ? 'bg-black text-white' :
+                    rider.company === 'Ola' ? 'bg-blue-100 text-blue-700' :
+                    rider.company === 'Rapido' ? 'bg-yellow-100 text-yellow-800' :
+                    rider.company === 'Swiggy' ? 'bg-orange-100 text-orange-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    {rider.company}
+                  </span>
+                  <span className="text-xs text-gray-500">{rider.trips} trips</span>
+                </div>
+
+                <p className="text-sm text-gray-600 mb-3">{rider.specialty}</p>
+
+                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-gray-500">Experience</span>
+                    <span className="text-xs font-bold text-gray-700">{rider.years} yrs</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Shield className="w-3 h-3 text-green-600" />
+                    <span className="text-sm font-bold text-green-600">98%</span>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -253,70 +316,6 @@ const Community = () => {
             transition={{ delay: 0.5 }}
             className="space-y-6"
           >
-            {/* Top Volunteers */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
-                  <Shield className="h-5 w-5 text-primary-600" />
-                  <span>Top Volunteers</span>
-                </h3>
-                <button className="text-primary-600 text-sm font-medium hover:underline">
-                  View All
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {volunteers.slice(0, 4).map((volunteer, index) => (
-                  <motion.div
-                    key={volunteer.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ x: 5 }}
-                    className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg cursor-pointer transition-all"
-                  >
-                    <div className="relative">
-                      <img
-                        src={volunteer.image}
-                        alt={volunteer.name}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                      {volunteer.available && (
-                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 text-sm">{volunteer.name}</h4>
-                      <p className="text-xs text-gray-500">{volunteer.specialty}</p>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                      <span className="text-sm font-medium">{volunteer.rating}</span>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-
-            {/* Become a Volunteer */}
-            <motion.div
-              whileHover={{ y: -5 }}
-              className="bg-gradient-to-br from-primary-600 to-primary-700 rounded-xl shadow-lg p-6 text-white"
-            >
-              <Shield className="h-12 w-12 mb-4" />
-              <h3 className="text-xl font-bold mb-2">Become a Volunteer</h3>
-              <p className="text-primary-100 mb-4">
-                Join our community of safety champions and help make a difference.
-              </p>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="w-full bg-white text-primary-600 font-semibold py-3 rounded-lg hover:bg-primary-50 transition-colors"
-              >
-                Apply Now
-              </motion.button>
-            </motion.div>
-
             {/* Safety Tips */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center space-x-2">
@@ -345,6 +344,25 @@ const Community = () => {
                 ))}
               </ul>
             </div>
+
+            {/* Become a Volunteer */}
+            <motion.div
+              whileHover={{ y: -5 }}
+              className="bg-gradient-to-br from-primary-600 to-primary-700 rounded-xl shadow-lg p-6 text-white"
+            >
+              <Shield className="h-12 w-12 mb-4" />
+              <h3 className="text-xl font-bold mb-2">Become a Volunteer</h3>
+              <p className="text-primary-100 mb-4">
+                Join our community of safety champions and help make a difference.
+              </p>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="w-full bg-white text-primary-600 font-semibold py-3 rounded-lg hover:bg-primary-50 transition-colors"
+              >
+                Apply Now
+              </motion.button>
+            </motion.div>
           </motion.div>
         </div>
       </div>

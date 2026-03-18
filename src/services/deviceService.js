@@ -62,33 +62,48 @@ export const registerDevice = async (deviceId, deviceInfo = {}) => {
     console.log('🔵 [registerDevice] Starting registration...');
     console.log('🔵 [registerDevice] DeviceId:', deviceId);
     console.log('🔵 [registerDevice] DeviceInfo:', deviceInfo);
-    
+
     const user = auth.currentUser;
     console.log('🔵 [registerDevice] Current User:', user);
-    
+
     if (!user) {
       console.error('❌ [registerDevice] No authenticated user');
       throw new Error('User must be authenticated to register a device. Please login first.');
     }
 
     const deviceRef = ref(database, `users/${user.uid}/devices/${deviceId}`);
+    const statusRef = ref(database, `users/${user.uid}/devices/${deviceId}/status`);
     console.log('🔵 [registerDevice] Device Ref Path:', `users/${user.uid}/devices/${deviceId}`);
+
+    const now = Date.now();
     
     const deviceData = {
       deviceId,
       userId: user.uid,
       name: deviceInfo.name || 'Suraksha Device',
-      registeredAt: Date.now(),
-      lastSeen: Date.now(),
-      online: false,
+      registeredAt: now,
+      lastSeen: now,
+      online: true, // Mark as online when freshly registered
       ...deviceInfo
     };
 
+    // Initial status data - device is online when registered
+    const statusData = {
+      online: true,
+      battery: 100,
+      wifiSignal: -50,
+      lastUpdate: now,
+      lastError: ''
+    };
+
     console.log('🔵 [registerDevice] Device Data:', deviceData);
+    console.log('🔵 [registerDevice] Status Data:', statusData);
     console.log('🔵 [registerDevice] Writing to Firebase...');
-    
+
+    // Write both device data and initial status
     await set(deviceRef, deviceData);
-    
+    await set(statusRef, statusData);
+
     console.log('✅ [registerDevice] Device registered successfully:', deviceId);
     return { success: true, deviceId };
   } catch (error) {
