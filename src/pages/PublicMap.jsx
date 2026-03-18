@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, CircleMarker } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, CircleMarker, Polyline } from 'react-leaflet';
 import L from 'leaflet';
+import * as XLSX from 'xlsx';
 import {
   MapPin,
   Search,
@@ -115,6 +116,8 @@ const PublicMap = () => {
   const [headerAlertMessage, setHeaderAlertMessage] = useState('');
   const [isSirenPlaying, setIsSirenPlaying] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
+  const [ncrbData, setNcrbData] = useState([]);
+  const [isLoadingNcrb, setIsLoadingNcrb] = useState(false);
   
   // Create audio ref for siren sound
   const sirenAudioRef = useRef(null);
@@ -136,6 +139,9 @@ const PublicMap = () => {
         console.warn('Siren MP3 not found, using Web Audio API fallback');
       });
     }
+    
+    // Load NCRB crime data
+    loadNcrbData();
     
     // Auto-initialize audio on first user interaction
     const initAudio = () => {
@@ -185,6 +191,261 @@ const PublicMap = () => {
       document.removeEventListener('touchstart', initAudio);
     };
   }, []);
+  
+  // Load NCRB crime data from ALL CSV files
+  const loadNcrbData = async () => {
+    setIsLoadingNcrb(true);
+    try {
+      const ncrbFiles = [
+        'NCRB_Table_1C.3.csv',  // Violent crimes against women
+        'NCRB_Table_2B.3.csv',  // Child victims
+        'NCRB_Table_2C.2.csv',  // Victims age/gender
+        'NCRB_Table_3A.3.csv',  // IPC crimes
+        'NCRB_Table_3B.1.csv'   // Special & local laws
+      ];
+      
+      const allCityData = new Map(); // Store combined data for each city
+      
+      // Load all CSV files
+      for (const file of ncrbFiles) {
+        try {
+          const response = await fetch(`/${file}`);
+          const csvText = await response.text();
+          
+          // Parse CSV
+          const workbook = XLSX.read(csvText, { type: 'string' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          
+          console.log(`📊 Loaded ${file}: ${jsonData.length} rows`);
+          
+          // Process each city in this file
+          jsonData.forEach(row => {
+            if (!row.City || row.City === 'Total Cities') return;
+            
+            const cityName = row.City;
+            
+            // Initialize city data if not exists
+            if (!allCityData.has(cityName)) {
+              allCityData.set(cityName, {
+                city: cityName,
+                totalCrimes: 0,
+                crimeRate: 0,
+                childVictims: 0,
+                adultVictims: 0,
+                womenVictims: 0,
+                riskLevel: 'safe',
+                population: 0,
+                sources: []
+              });
+            }
+            
+            const cityData = allCityData.get(cityName);
+            cityData.sources.push(file);
+            
+            // Extract crime data from different tables
+            if (row['Rate of Violent Crimes (2022)']) {
+              cityData.crimeRate = parseFloat(row['Rate of Violent Crimes (2022)']) || 0;
+              cityData.totalCrimes = parseInt(row['2022']) || 0;
+              cityData.population = parseFloat(row['Actual Population (in Lakhs) (2011)']) || 0;
+            }
+            
+            // Child victims data
+            if (row['Child Victims - Total Child Victims - Total - Col.(22)']) {
+              cityData.childVictims += parseInt(row['Child Victims - Total Child Victims - Total - Col.(22)']) || 0;
+            }
+            
+            // Adult victims data
+            if (row['Adult Victims - Total Adult Victims - Total - Col.(42)']) {
+              cityData.adultVictims += parseInt(row['Adult Victims - Total Adult Victims - Total - Col.(42)']) || 0;
+            }
+            
+            // Women victims (from Table 1C.3)
+            if (row['Total Victims (Child + Adult) - F - Col.(44)']) {
+              cityData.womenVictims += parseInt(row['Total Victims (Child + Adult) - F - Col.(44)']) || 0;
+            }
+            
+          });
+        } catch (error) {
+          console.error(`Error loading ${file}:`, error);
+        }
+      }
+      
+      // Calculate final risk levels based on combined data
+      const processedData = Array.from(allCityData.values()).map(city => {
+        // Auto-categorize based on crime rate
+        let riskLevel = 'safe';
+        if (city.crimeRate >= 50) {
+          riskLevel = 'caution'; // High crime rate
+        } else if (city.crimeRate >= 20) {
+          riskLevel = 'moderate'; // Medium crime rate
+        } else {
+          riskLevel = 'safe'; // Low crime rate
+        }
+        
+        return {
+          ...city,
+          riskLevel,
+          totalVictims: city.childVictims + city.adultVictims
+        };
+      });
+      
+      setNcrbData(processedData);
+      console.log('✅ NCRB Data loaded from ALL sheets:', processedData.length, 'cities');
+      console.log('📊 High Risk (Caution) Cities:', processedData.filter(c => c.riskLevel === 'caution').length);
+      console.log('📊 Moderate Risk Cities:', processedData.filter(c => c.riskLevel === 'moderate').length);
+      console.log('📊 Safe Cities:', processedData.filter(c => c.riskLevel === 'safe').length);
+      
+      // Show sample data
+      console.log('📋 Sample City Data:', processedData[0]);
+      
+    } catch (error) {
+      console.error('Error loading NCRB data:', error);
+    } finally {
+      setIsLoadingNcrb(false);
+    }
+  };
+  
+  // Get risk level from NCRB data for a city
+  const getRiskLevelFromNCRB = (cityName) => {
+    const ncrbEntry = ncrbData.find(d => 
+      d.city.toLowerCase().includes(cityName.toLowerCase()) ||
+      cityName.toLowerCase().includes(d.city.toLowerCase())
+    );
+    
+    if (ncrbEntry) {
+      return {
+        riskLevel: ncrbEntry.riskLevel,
+        crimeRate: ncrbEntry.crimeRate,
+        totalCrimes: ncrbEntry.totalCrimes,
+        fromNCRB: true
+      };
+    }
+    
+    return null;
+  };
+  
+  // Search Prayagraj areas
+  const searchPrayagrajArea = (query) => {
+    if (!query.trim()) {
+      setPrayagrajSearchResults([]);
+      setShowPrayagrajSearch(false);
+      return;
+    }
+    
+    const searchTerm = query.toLowerCase();
+    const results = prayagrajZones.filter(zone => 
+      zone.name.toLowerCase().includes(searchTerm) ||
+      zone.area.toLowerCase().includes(searchTerm) ||
+      zone.description.toLowerCase().includes(searchTerm) ||
+      (zone.keywords && zone.keywords.some(k => k.toLowerCase().includes(searchTerm)))
+    );
+    
+    setPrayagrajSearchResults(results);
+    setShowPrayagrajSearch(true);
+    console.log(`🔍 Prayagraj search: "${query}" - Found ${results.length} results`);
+  };
+  
+  // Navigate to Prayagraj location
+  const navigateToPrayagrajLocation = (zone) => {
+    setPrayagrajMapCenter([zone.lat, zone.lng]);
+    setPrayagrajSelectedLocation(zone);
+    setShowPrayagrajSearch(false);
+    setPrayagrajSearchQuery('');
+    setPrayagrajSearchResults([]);
+    
+    if (prayagrajMapInstance) {
+      prayagrajMapInstance.flyTo([zone.lat, zone.lng], 16);
+    }
+  };
+  
+  // Calculate route safety between source and destination
+  const analyzeRouteSafety = () => {
+    if (!routeSource || !routeDestination) {
+      alert('⚠️ Please select both Source and Destination');
+      return;
+    }
+    
+    // Get all zones for the selected view mode
+    const zonesToAnalyze = viewMode === 'prayagraj' ? prayagrajZones : getUpdatedSafetyZones();
+    
+    // Find zones that lie between source and destination
+    // Using simple bounding box approach (can be improved with proper routing API)
+    const minLat = Math.min(routeSource.lat, routeDestination.lat) - 0.02;
+    const maxLat = Math.max(routeSource.lat, routeDestination.lat) + 0.02;
+    const minLng = Math.min(routeSource.lng, routeDestination.lng) - 0.02;
+    const maxLng = Math.max(routeSource.lng, routeDestination.lng) + 0.02;
+    
+    const zonesInRoute = zonesToAnalyze.filter(zone => 
+      zone.lat >= minLat && zone.lat <= maxLat &&
+      zone.lng >= minLng && zone.lng <= maxLng
+    );
+    
+    // Calculate risk statistics
+    const safeZones = zonesInRoute.filter(z => z.type === 'safe');
+    const moderateZones = zonesInRoute.filter(z => z.type === 'moderate');
+    const riskyZones = zonesInRoute.filter(z => z.type === 'caution');
+    
+    // Calculate overall route safety score
+    const totalZones = zonesInRoute.length;
+    const safetyScore = totalZones > 0 ? Math.round((safeZones.length / totalZones) * 100) : 0;
+    
+    let safetyLevel = 'safe';
+    if (safetyScore < 40) safetyLevel = 'dangerous';
+    else if (safetyScore < 70) safetyLevel = 'moderate';
+    
+    // Create route line coordinates
+    const routeCoordinates = [
+      [routeSource.lat, routeSource.lng],
+      [routeDestination.lat, routeDestination.lng]
+    ];
+    
+    const analysis = {
+      source: routeSource,
+      destination: routeDestination,
+      totalZones,
+      safeZones: safeZones.length,
+      moderateZones: moderateZones.length,
+      riskyZones: riskyZones.length,
+      safetyScore,
+      safetyLevel,
+      zonesInRoute,
+      riskyZoneList: riskyZones,
+      distance: calculateDistance(routeSource.lat, routeSource.lng, routeDestination.lat, routeDestination.lng),
+      routeCoordinates
+    };
+    
+    setRouteAnalysis(analysis);
+    setShowRouteResults(true);
+    setRoutePolyline(routeCoordinates);
+    setShowRouteLine(true);
+    console.log('🛣️ Route Analysis:', analysis);
+    console.log('🗺️ Route Polyline:', routeCoordinates);
+    console.log('🗺️ Show Route Line:', showRouteLine);
+  };
+  
+  // Calculate distance between two points (Haversine formula)
+  const calculateDistance = (lat1, lng1, lat2, lng2) => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return (R * c).toFixed(2);
+  };
+  
+  // Clear route selection
+  const clearRoute = () => {
+    setRouteSource(null);
+    setRouteDestination(null);
+    setRouteAnalysis(null);
+    setShowRouteResults(false);
+    setRoutePolyline(null);
+    setShowRouteLine(false);
+  };
   
   // Create siren sound using Web Audio API (fallback)
   const createSirenSound = () => {
@@ -278,38 +539,105 @@ const PublicMap = () => {
   const [prayagrajSelectedLocation, setPrayagrajSelectedLocation] = useState(null);
   const [prayagrajMapInstance, setPrayagrajMapInstance] = useState(null);
   const [prayagrajFilter, setPrayagrajFilter] = useState('all');
+  const [prayagrajSearchQuery, setPrayagrajSearchQuery] = useState('');
+  const [prayagrajSearchResults, setPrayagrajSearchResults] = useState([]);
+  const [showPrayagrajSearch, setShowPrayagrajSearch] = useState(false);
+  
+  // Route Safety Feature - Source & Destination
+  const [showRoutePlanner, setShowRoutePlanner] = useState(false);
+  const [routeSource, setRouteSource] = useState(null);
+  const [routeDestination, setRouteDestination] = useState(null);
+  const [routeAnalysis, setRouteAnalysis] = useState(null);
+  const [showRouteResults, setShowRouteResults] = useState(false);
+  const [routePolyline, setRoutePolyline] = useState(null);
+  const [showRouteLine, setShowRouteLine] = useState(false);
 
   // Prayagraj (Allahabad) Local Areas - Safe, Moderate, Risky Zones
+  // Analysed based on: Lighting, Police Presence, Population Density, CCTV Coverage, Educational Institutions, Crime Incidents
   const prayagrajZones = [
-    // SAFE ZONES (Green)
-    { id: 'p1', name: 'Civil Lines', type: 'safe', volunteers: 45, incidents: 1, lat: 25.4358, lng: 81.8463, area: 'Civil Lines', description: 'Well-lit, police presence' },
-    { id: 'p2', name: 'Tagore Town', type: 'safe', volunteers: 38, incidents: 2, lat: 25.4412, lng: 81.8520, area: 'Tagore Town', description: 'Residential area, good connectivity' },
-    { id: 'p3', name: 'George Town', type: 'safe', volunteers: 42, incidents: 1, lat: 25.4380, lng: 81.8450, area: 'George Town', description: 'Commercial hub, CCTV coverage' },
-    { id: 'p4', name: 'Katra', type: 'safe', volunteers: 35, incidents: 2, lat: 25.4330, lng: 81.8400, area: 'Katra', description: 'Market area, busy during day' },
-    { id: 'p5', name: 'Sadar Bazaar', type: 'safe', volunteers: 40, incidents: 3, lat: 25.4390, lng: 81.8380, area: 'Sadar', description: 'Cantonment area, secure' },
-    { id: 'p6', name: 'MG Marg', type: 'safe', volunteers: 50, incidents: 1, lat: 25.4370, lng: 81.8490, area: 'Civil Lines', description: 'Main road, well populated' },
-    { id: 'p7', name: 'Elgin Road', type: 'safe', volunteers: 36, incidents: 2, lat: 25.4400, lng: 81.8510, area: 'Civil Lines', description: 'Educational institutions nearby' },
-    { id: 'p8', name: 'Ashok Nagar', type: 'safe', volunteers: 32, incidents: 2, lat: 25.4450, lng: 81.8600, area: 'Ashok Nagar', description: 'Residential colony' },
-    { id: 'p9', name: 'Rambagh', type: 'safe', volunteers: 30, incidents: 1, lat: 25.4500, lng: 81.8700, area: 'Rambagh', description: 'Green area, peaceful' },
-    { id: 'p10', name: 'Lukarganj', type: 'safe', volunteers: 28, incidents: 2, lat: 25.4320, lng: 81.8550, area: 'Lukarganj', description: 'Traditional market' },
+    // ==================== SAFE ZONES (Green) ====================
+    // Well-lit, good police presence, low crime, high foot traffic
     
-    // MODERATE RISK ZONES (Yellow)
-    { id: 'p11', name: 'Chowk', type: 'moderate', volunteers: 22, incidents: 6, lat: 25.4310, lng: 81.8350, area: 'Chowk', description: 'Crowded market, be careful' },
-    { id: 'p12', name: 'Khusro Bagh Area', type: 'moderate', volunteers: 20, incidents: 5, lat: 25.4290, lng: 81.8320, area: 'Old City', description: 'Historical area, less lit at night' },
-    { id: 'p13', name: 'Daryabad', type: 'moderate', volunteers: 25, incidents: 5, lat: 25.4280, lng: 81.8380, area: 'Daryabad', description: 'Wholesale market, crowded' },
-    { id: 'p14', name: 'Jhusi', type: 'moderate', volunteers: 18, incidents: 4, lat: 25.4200, lng: 81.8900, area: 'Jhusi', description: 'Developing area, limited transport' },
-    { id: 'p15', name: 'Naini', type: 'moderate', volunteers: 24, incidents: 6, lat: 25.4100, lng: 81.8200, area: 'Naini', description: 'Industrial area, be cautious' },
-    { id: 'p16', name: 'Phaphamau', type: 'moderate', volunteers: 20, incidents: 5, lat: 25.4000, lng: 81.8700, area: 'Phaphamau', description: 'Suburban area, moderate risk' },
-    { id: 'p17', name: 'Soraon', type: 'moderate', volunteers: 16, incidents: 4, lat: 25.3900, lng: 81.9000, area: 'Soraon', description: 'Rural-urban fringe' },
-    { id: 'p18', name: 'Karchhana', type: 'moderate', volunteers: 15, incidents: 4, lat: 25.3800, lng: 81.8100, area: 'Karchhana', description: 'Developing locality' },
+    // Civil Lines - Premium residential & commercial area
+    { id: 'p1', name: 'Civil Lines', type: 'safe', volunteers: 45, incidents: 1, lat: 25.4358, lng: 81.8463, area: 'Civil Lines', description: 'Well-lit, police presence, premium area', riskFactors: { lighting: 'excellent', police: 'high', cctv: 'yes', population: 'high' } },
+    { id: 'p2', name: 'Tagore Town', type: 'safe', volunteers: 38, incidents: 2, lat: 25.4412, lng: 81.8520, area: 'Tagore Town', description: 'Residential area, good connectivity', riskFactors: { lighting: 'good', police: 'medium', cctv: 'yes', population: 'medium' } },
+    { id: 'p3', name: 'George Town', type: 'safe', volunteers: 42, incidents: 1, lat: 25.4380, lng: 81.8450, area: 'George Town', description: 'Commercial hub, CCTV coverage', riskFactors: { lighting: 'excellent', police: 'high', cctv: 'yes', population: 'very high' } },
+    { id: 'p4', name: 'Katra', type: 'safe', volunteers: 35, incidents: 2, lat: 25.4330, lng: 81.8400, area: 'Katra', description: 'Market area, busy during day', riskFactors: { lighting: 'good', police: 'medium', cctv: 'partial', population: 'very high' } },
+    { id: 'p5', name: 'Sadar Bazaar', type: 'safe', volunteers: 40, incidents: 3, lat: 25.4390, lng: 81.8380, area: 'Sadar', description: 'Cantonment area, secure', riskFactors: { lighting: 'excellent', police: 'very high', cctv: 'yes', population: 'high' } },
+    { id: 'p6', name: 'MG Marg', type: 'safe', volunteers: 50, incidents: 1, lat: 25.4370, lng: 81.8490, area: 'Civil Lines', description: 'Main road, well populated', riskFactors: { lighting: 'excellent', police: 'high', cctv: 'yes', population: 'very high' } },
+    { id: 'p7', name: 'Elgin Road', type: 'safe', volunteers: 36, incidents: 2, lat: 25.4400, lng: 81.8510, area: 'Civil Lines', description: 'Educational institutions nearby', riskFactors: { lighting: 'good', police: 'medium', cctv: 'yes', population: 'high' } },
+    { id: 'p8', name: 'Ashok Nagar', type: 'safe', volunteers: 32, incidents: 2, lat: 25.4450, lng: 81.8600, area: 'Ashok Nagar', description: 'Residential colony', riskFactors: { lighting: 'good', police: 'medium', cctv: 'partial', population: 'medium' } },
+    { id: 'p9', name: 'Rambagh', type: 'safe', volunteers: 30, incidents: 1, lat: 25.4500, lng: 81.8700, area: 'Rambagh', description: 'Green area, peaceful', riskFactors: { lighting: 'good', police: 'medium', cctv: 'yes', population: 'low' } },
+    { id: 'p10', name: 'Lukarganj', type: 'safe', volunteers: 28, incidents: 2, lat: 25.4320, lng: 81.8550, area: 'Lukarganj', description: 'Traditional market', riskFactors: { lighting: 'good', police: 'medium', cctv: 'partial', population: 'high' } },
     
-    // RISKY ZONES (Red) - High Caution Areas
-    { id: 'p19', name: 'Zero Road', type: 'caution', volunteers: 12, incidents: 12, lat: 25.4250, lng: 81.8280, area: 'Zero Road', description: 'Less populated at night' },
-    { id: 'p20', name: 'Mumfordganj', type: 'caution', volunteers: 10, incidents: 10, lat: 25.4200, lng: 81.8100, area: 'Mumfordganj', description: 'Isolated areas, avoid late night' },
-    { id: 'p21', name: 'Johnstonganj', type: 'caution', volunteers: 14, incidents: 9, lat: 25.4270, lng: 81.8300, area: 'Old City', description: 'Narrow lanes, poor lighting' },
-    { id: 'p22', name: 'Bhiti', type: 'caution', volunteers: 8, incidents: 8, lat: 25.4150, lng: 81.8000, area: 'Bhiti', description: 'Remote area, limited connectivity' },
-    { id: 'p23', name: 'Mandhata', type: 'caution', volunteers: 10, incidents: 11, lat: 25.4100, lng: 81.7900, area: 'Mandhata', description: 'Industrial zone, avoid night' },
-    { id: 'p24', name: 'Handia', type: 'caution', volunteers: 9, incidents: 8, lat: 25.3700, lng: 81.7800, area: 'Handia', description: 'Rural area, limited help' },
+    // ==================== UNIVERSITIES & EDUCATIONAL ZONES ====================
+    // Generally safe due to security, but some areas need caution
+    
+    // University of Allahabad - Main Campus (SAFE)
+    { id: 'p201', name: 'Allahabad University - Main Campus', type: 'safe', volunteers: 60, incidents: 0, lat: 25.4340, lng: 81.8480, area: 'Civil Lines', description: '🎓 University Campus - 24/7 Security, CCTV, Well-lit', riskFactors: { lighting: 'excellent', police: 'high', cctv: 'yes', population: 'very high', security: '24/7' } },
+    { id: 'p202', name: 'Allahabad University - Library', type: 'safe', volunteers: 40, incidents: 0, lat: 25.4335, lng: 81.8475, area: 'Civil Lines', description: '📚 University Library - Secure area', riskFactors: { lighting: 'excellent', police: 'high', cctv: 'yes', population: 'high' } },
+    { id: 'p203', name: 'Allahabad University - Hostels', type: 'safe', volunteers: 35, incidents: 1, lat: 25.4350, lng: 81.8490, area: 'Civil Lines', description: '🏠 University Hostels - Gated community', riskFactors: { lighting: 'good', police: 'high', cctv: 'yes', population: 'high' } },
+    
+    // Motilal Nehru National Institute of Technology (MNNIT) - SAFE
+    { id: 'p204', name: 'MNNIT Allahabad - Main Gate', type: 'safe', volunteers: 50, incidents: 0, lat: 25.4420, lng: 81.8620, area: 'Jhalwa', description: '🎓 MNNIT Campus - High Security', riskFactors: { lighting: 'excellent', police: 'very high', cctv: 'yes', population: 'high', security: '24/7' } },
+    { id: 'p205', name: 'MNNIT - Academic Block', type: 'safe', volunteers: 45, incidents: 0, lat: 25.4425, lng: 81.8630, area: 'Jhalwa', description: '📖 MNNIT Academic Area - CCTV covered', riskFactors: { lighting: 'excellent', police: 'high', cctv: 'yes', population: 'very high' } },
+    { id: 'p206', name: 'MNNIT - Hostels', type: 'safe', volunteers: 40, incidents: 0, lat: 25.4430, lng: 81.8640, area: 'Jhalwa', description: '🏠 MNNIT Hostels - Secure campus', riskFactors: { lighting: 'good', police: 'high', cctv: 'yes', population: 'high' } },
+    
+    // University Institute of Technology (UIT) - SAFE
+    { id: 'p221', name: 'UIT (University Institute of Technology)', type: 'safe', volunteers: 45, incidents: 0, lat: 25.4418, lng: 81.8615, area: 'Jhalwa', description: '🎓 UIT Campus - Part of Allahabad University, Secure', riskFactors: { lighting: 'excellent', police: 'high', cctv: 'yes', population: 'high', security: '24/7' } },
+    { id: 'p222', name: 'UIT - Academic Block', type: 'safe', volunteers: 35, incidents: 0, lat: 25.4415, lng: 81.8610, area: 'Jhalwa', description: '📚 UIT Classes & Labs - CCTV covered', riskFactors: { lighting: 'excellent', police: 'high', cctv: 'yes', population: 'very high' } },
+    { id: 'p223', name: 'UIT - Hostels', type: 'safe', volunteers: 30, incidents: 0, lat: 25.4410, lng: 81.8625, area: 'Jhalwa', description: '🏠 UIT Student Hostels - Gated community', riskFactors: { lighting: 'good', police: 'high', cctv: 'yes', population: 'high' } },
+    { id: 'p224', name: 'UIT Main Gate Road', type: 'moderate', volunteers: 25, incidents: 2, lat: 25.4405, lng: 81.8605, area: 'Jhalwa', description: '⚠️ Outside UIT - Auto/rickshaw stand, be alert', riskFactors: { lighting: 'medium', police: 'medium', cctv: 'partial', population: 'high', transport: 'high' } },
+    
+    // Motilal Nehru Medical College - SAFE
+    { id: 'p207', name: 'MLN Medical College', type: 'safe', volunteers: 55, incidents: 1, lat: 25.4380, lng: 81.8550, area: 'Civil Lines', description: '🏥 Medical College & Hospital - 24/7 active', riskFactors: { lighting: 'excellent', police: 'high', cctv: 'yes', population: 'very high', security: '24/7' } },
+    
+    // Ewing Christian College - SAFE
+    { id: 'p208', name: 'Ewing Christian College', type: 'safe', volunteers: 35, incidents: 0, lat: 25.4290, lng: 81.8420, area: 'Civil Lines', description: '🎓 ECC Campus - Secure', riskFactors: { lighting: 'good', police: 'medium', cctv: 'yes', population: 'high' } },
+    
+    // Other Educational Institutions
+    { id: 'p209', name: 'Allahabad Degree College', type: 'safe', volunteers: 30, incidents: 1, lat: 25.4310, lng: 81.8450, area: 'Civil Lines', description: '📚 College area - Day time active', riskFactors: { lighting: 'good', police: 'medium', cctv: 'partial', population: 'high' } },
+    { id: 'p210', name: 'Indian Law Institute', type: 'safe', volunteers: 25, incidents: 0, lat: 25.4360, lng: 81.8500, area: 'Civil Lines', description: '⚖️ Law Institute - Secure campus', riskFactors: { lighting: 'good', police: 'medium', cctv: 'yes', population: 'medium' } },
+    
+    // ==================== MODERATE RISK ZONES (Yellow) ====================
+    // Some lighting issues, moderate crime, needs caution
+    
+    { id: 'p11', name: 'Chowk', type: 'moderate', volunteers: 22, incidents: 6, lat: 25.4310, lng: 81.8350, area: 'Chowk', description: '⚠️ Crowded market, be careful - Pickpocketing common', riskFactors: { lighting: 'poor', police: 'low', cctv: 'partial', population: 'very high', crime: 'theft' } },
+    { id: 'p12', name: 'Khusro Bagh Area', type: 'moderate', volunteers: 20, incidents: 5, lat: 25.4290, lng: 81.8320, area: 'Old City', description: '⚠️ Historical area, less lit at night', riskFactors: { lighting: 'poor', police: 'low', cctv: 'no', population: 'low' } },
+    { id: 'p13', name: 'Daryabad', type: 'moderate', volunteers: 25, incidents: 5, lat: 25.4280, lng: 81.8380, area: 'Daryabad', description: '⚠️ Wholesale market, crowded', riskFactors: { lighting: 'medium', police: 'medium', cctv: 'partial', population: 'very high' } },
+    { id: 'p14', name: 'Jhusi', type: 'moderate', volunteers: 18, incidents: 4, lat: 25.4200, lng: 81.8900, area: 'Jhusi', description: '⚠️ Developing area, limited transport', riskFactors: { lighting: 'medium', police: 'low', cctv: 'no', population: 'medium' } },
+    { id: 'p15', name: 'Naini', type: 'moderate', volunteers: 24, incidents: 6, lat: 25.4100, lng: 81.8200, area: 'Naini', description: '⚠️ Industrial area, be cautious', riskFactors: { lighting: 'medium', police: 'medium', cctv: 'partial', population: 'medium' } },
+    { id: 'p16', name: 'Phaphamau', type: 'moderate', volunteers: 20, incidents: 5, lat: 25.4000, lng: 81.8700, area: 'Phaphamau', description: '⚠️ Suburban area, moderate risk', riskFactors: { lighting: 'medium', police: 'low', cctv: 'no', population: 'medium' } },
+    { id: 'p17', name: 'Soraon', type: 'moderate', volunteers: 16, incidents: 4, lat: 25.3900, lng: 81.9000, area: 'Soraon', description: '⚠️ Rural-urban fringe', riskFactors: { lighting: 'poor', police: 'low', cctv: 'no', population: 'low' } },
+    { id: 'p18', name: 'Karchhana', type: 'moderate', volunteers: 15, incidents: 4, lat: 25.3800, lng: 81.8100, area: 'Karchhana', description: '⚠️ Developing locality', riskFactors: { lighting: 'poor', police: 'low', cctv: 'no', population: 'low' } },
+    
+    // University Adjacent Areas - MODERATE (due to student population)
+    { id: 'p211', name: 'University Road (Outside Campus)', type: 'moderate', volunteers: 25, incidents: 4, lat: 25.4330, lng: 81.8465, area: 'Civil Lines', description: '⚠️ Outside university - Evening caution advised', riskFactors: { lighting: 'medium', police: 'medium', cctv: 'partial', population: 'high', students: 'high' } },
+    { id: 'p212', name: 'Civil Lines Hostel Area', type: 'moderate', volunteers: 30, incidents: 3, lat: 25.4365, lng: 81.8505, area: 'Civil Lines', description: '⚠️ Student housing area - Be alert at night', riskFactors: { lighting: 'medium', police: 'medium', cctv: 'partial', population: 'high', students: 'very high' } },
+    { id: 'p213', name: 'MNNIT Gate Road', type: 'moderate', volunteers: 28, incidents: 3, lat: 25.4415, lng: 81.8610, area: 'Jhalwa', description: '⚠️ Outside MNNIT - Auto/rickshaw area', riskFactors: { lighting: 'medium', police: 'medium', cctv: 'partial', population: 'high', transport: 'high' } },
+    
+    // ==================== RISKY ZONES (Red) - High Caution Areas ====================
+    // Poor lighting, low police presence, high crime, isolated
+    
+    { id: 'p19', name: 'Zero Road', type: 'caution', volunteers: 12, incidents: 12, lat: 25.4250, lng: 81.8280, area: 'Zero Road', description: '🚨 Less populated at night - Avoid after dark', riskFactors: { lighting: 'very poor', police: 'very low', cctv: 'no', population: 'low', crime: 'high' } },
+    { id: 'p20', name: 'Mumfordganj', type: 'caution', volunteers: 10, incidents: 10, lat: 25.4200, lng: 81.8100, area: 'Mumfordganj', description: '🚨 Isolated areas, avoid late night', riskFactors: { lighting: 'very poor', police: 'very low', cctv: 'no', population: 'very low' } },
+    { id: 'p21', name: 'Johnstonganj', type: 'caution', volunteers: 14, incidents: 9, lat: 25.4270, lng: 81.8300, area: 'Old City', description: '🚨 Narrow lanes, poor lighting', riskFactors: { lighting: 'very poor', police: 'low', cctv: 'no', population: 'medium' } },
+    { id: 'p22', name: 'Bhiti', type: 'caution', volunteers: 8, incidents: 8, lat: 25.4150, lng: 81.8000, area: 'Bhiti', description: '🚨 Remote area, limited connectivity', riskFactors: { lighting: 'very poor', police: 'very low', cctv: 'no', population: 'very low', transport: 'none' } },
+    { id: 'p23', name: 'Mandhata', type: 'caution', volunteers: 10, incidents: 11, lat: 25.4100, lng: 81.7900, area: 'Mandhata', description: '🚨 Industrial zone, avoid night', riskFactors: { lighting: 'very poor', police: 'very low', cctv: 'no', population: 'low', industrial: 'yes' } },
+    { id: 'p24', name: 'Handia', type: 'caution', volunteers: 9, incidents: 8, lat: 25.3700, lng: 81.7800, area: 'Handia', description: '🚨 Rural area, limited help', riskFactors: { lighting: 'very poor', police: 'very low', cctv: 'no', population: 'very low', transport: 'none' } },
+    
+    // University Adjacent High Risk Areas
+    { id: 'p214', name: 'University Back Road', type: 'caution', volunteers: 15, incidents: 7, lat: 25.4325, lng: 81.8455, area: 'Civil Lines', description: '🚨 Behind university - Isolated, avoid at night', riskFactors: { lighting: 'very poor', police: 'low', cctv: 'no', population: 'very low', students: 'target' } },
+    { id: 'p215', name: 'Old Fort Area (Near University)', type: 'caution', volunteers: 12, incidents: 8, lat: 25.4315, lng: 81.8440, area: 'Fort', description: '🚨 Historical fort area - Poor lighting, isolated', riskFactors: { lighting: 'very poor', police: 'very low', cctv: 'no', population: 'low', tourists: 'target' } },
+    { id: 'p216', name: 'Railway Station Road (Night)', type: 'caution', volunteers: 18, incidents: 9, lat: 25.4280, lng: 81.8350, area: 'Station', description: '🚨 Station area - Pickpockets, scammers active', riskFactors: { lighting: 'poor', police: 'medium', cctv: 'partial', population: 'very high', crime: 'theft/scam' } },
+    
+    // Railway & Transport Hubs - High Risk
+    { id: 'p217', name: 'Prayagraj Junction - Platform Area', type: 'caution', volunteers: 20, incidents: 15, lat: 25.4340, lng: 81.8320, area: 'Station', description: '🚨 Railway Station - High theft risk, beware of touts', riskFactors: { lighting: 'medium', police: 'medium', cctv: 'yes', population: 'very high', crime: 'theft' } },
+    { id: 'p218', name: 'Bus Stand Area', type: 'caution', volunteers: 16, incidents: 12, lat: 25.4300, lng: 81.8380, area: 'Station', description: '🚨 Bus terminal - Scammers, overcharging', riskFactors: { lighting: 'poor', police: 'low', cctv: 'partial', population: 'very high', crime: 'scam' } },
+    
+    // River Front Areas - High Risk at Night
+    { id: 'p219', name: 'Sangam Ghat (Night)', type: 'caution', volunteers: 10, incidents: 6, lat: 25.4290, lng: 81.8450, area: 'Sangam', description: '🚨 River ghat - Isolated after evening, avoid', riskFactors: { lighting: 'very poor', police: 'low', cctv: 'no', population: 'low', tourists: 'target' } },
+    { id: 'p220', name: 'Yamuna Bridge Area', type: 'caution', volunteers: 8, incidents: 7, lat: 25.4250, lng: 81.8400, area: 'Bridge', description: '🚨 Bridge area - Robbery risk at night', riskFactors: { lighting: 'very poor', police: 'very low', cctv: 'no', population: 'very low', crime: 'robbery' } },
   ];
 
   const safetyZones = [
@@ -355,7 +683,7 @@ const PublicMap = () => {
     { id: 147, name: 'Kamarhati', type: 'caution', volunteers: 11, incidents: 14, lat: 22.6708, lng: 88.3742, keywords: ['kamarhati', 'kolkata', 'north'], description: 'Dense area, less lighting' },
     { id: 148, name: 'Madhyamgram', type: 'caution', volunteers: 12, incidents: 13, lat: 22.6963, lng: 88.4486, keywords: ['madhyamgram', 'kolkata', 'airport'], description: 'Airport vicinity, be alert' },
     { id: 149, name: 'Barasat', type: 'caution', volunteers: 13, incidents: 12, lat: 22.7210, lng: 88.4572, keywords: ['barasat', 'kolkata', 'north 24 parganas'], description: 'Suburban area, limited help' },
-    { id: 150, name: 'Basirhat', type: 'caution', volunteers: 9, incidents: 14, lat: 22.6536, lng: 88.8919, keywords: ['basirhat', 'west bengal', 'border'], description: 'Border area, remote' },
+    { id: 160, name: 'Basirhat', type: 'caution', volunteers: 9, incidents: 14, lat: 22.6536, lng: 88.8919, keywords: ['basirhat', 'west bengal', 'border'], description: 'Border area, remote' },
     // Major cities across India
     { id: 13, name: 'Mumbai Central', type: 'safe', volunteers: 85, incidents: 5, lat: 19.0760, lng: 72.8777, keywords: ['mumbai', 'bombay', 'maharashtra'] },
     { id: 14, name: 'Bangalore City', type: 'safe', volunteers: 78, incidents: 3, lat: 12.9716, lng: 77.5946, keywords: ['bangalore', 'bengaluru', 'karnataka'] },
@@ -776,8 +1104,31 @@ const PublicMap = () => {
     }
   };
 
-  // Filter zones based on view mode
-  const filteredZones = (viewMode === 'prayagraj' ? prayagrajZones : safetyZones).filter(zone => {
+  // Auto-update India map zones based on NCRB crime data
+  const getUpdatedSafetyZones = () => {
+    if (ncrbData.length === 0) return safetyZones;
+    
+    return safetyZones.map(zone => {
+      // Check if we have NCRB data for this city
+      const ncrbInfo = getRiskLevelFromNCRB(zone.name);
+      
+      if (ncrbInfo && ncrbInfo.fromNCRB) {
+        // Update zone type based on NCRB crime rate
+        return {
+          ...zone,
+          type: ncrbInfo.riskLevel,
+          incidents: ncrbInfo.totalCrimes,
+          description: `${zone.description || ''} | NCRB Crime Rate: ${ncrbInfo.crimeRate} per lakh`,
+          fromNCRB: true
+        };
+      }
+      
+      return zone;
+    });
+  };
+  
+  // Filter zones based on view mode (with NCRB auto-categorization for India map)
+  const filteredZones = (viewMode === 'prayagraj' ? prayagrajZones : getUpdatedSafetyZones()).filter(zone => {
     if (selectedFilter === 'all') return true;
     return zone.type === selectedFilter;
   });
@@ -826,18 +1177,6 @@ const PublicMap = () => {
     });
 
     return nearest;
-  };
-
-  const calculateDistance = (lat1, lng1, lat2, lng2) => {
-    const R = 6371; // Radius of Earth in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLng/2) * Math.sin(dLng/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    const distance = R * c;
-    return distance.toFixed(1) + ' km';
   };
 
   // Geocoding using Nominatim (OpenStreetMap)
@@ -1057,6 +1396,29 @@ const PublicMap = () => {
                   ? 'Local safety zones with real-time risk assessment'
                   : 'Search any location to check its safety status in real-time'}
               </p>
+              {ncrbData.length > 0 && viewMode === 'india' && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="mt-3 flex items-center gap-3 text-xs"
+                >
+                  <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full font-semibold">
+                    🟢 Safe: {ncrbData.filter(c => c.riskLevel === 'safe').length}
+                  </span>
+                  <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full font-semibold">
+                    🟡 Moderate: {ncrbData.filter(c => c.riskLevel === 'moderate').length}
+                  </span>
+                  <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full font-semibold">
+                    🔴 High Risk: {ncrbData.filter(c => c.riskLevel === 'caution').length}
+                  </span>
+                  <span className="text-gray-500">
+                    Source: NCRB 2022-24 Crime Data
+                  </span>
+                </motion.div>
+              )}
+              {isLoadingNcrb && (
+                <p className="text-sm text-blue-600 mt-2">📊 Loading NCRB crime data...</p>
+              )}
             </div>
 
             {/* View Mode Toggle */}
@@ -1087,6 +1449,22 @@ const PublicMap = () => {
               >
                 🏛️ Prayagraj Local
               </button>
+              
+              {/* Route Planner Button */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowRoutePlanner(!showRoutePlanner)}
+                className={`px-4 py-2 rounded-md font-medium transition-all flex items-center gap-2 ${
+                  showRoutePlanner
+                    ? 'bg-green-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+                title="Plan safe route"
+              >
+                <Navigation className="h-4 w-4" />
+                <span className="hidden md:inline">Route Safety</span>
+              </motion.button>
             </div>
           </div>
         </motion.div>
@@ -1094,6 +1472,167 @@ const PublicMap = () => {
         {/* India Map Content - Only show when India view mode is selected */}
         {viewMode === 'india' && (
           <>
+            {/* Route Planner Panel */}
+            {showRoutePlanner && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-gradient-to-r from-green-50 via-blue-50 to-purple-50 rounded-2xl shadow-xl p-6 mb-8 border-2 border-green-200"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Navigation className="h-6 w-6 text-green-600" />
+                    🛣️ Route Safety Planner
+                  </h3>
+                  <button
+                    onClick={clearRoute}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  {/* Source Selection */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      📍 Source Location
+                    </label>
+                    <select
+                      value={routeSource ? routeSource.name : ''}
+                      onChange={(e) => {
+                        const zone = getUpdatedSafetyZones().find(z => z.name === e.target.value);
+                        if (zone) setRouteSource(zone);
+                      }}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                    >
+                      <option value="">Select Source</option>
+                      {getUpdatedSafetyZones().map(zone => (
+                        <option key={zone.id} value={zone.name}>{zone.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Destination Selection */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      🏁 Destination
+                    </label>
+                    <select
+                      value={routeDestination ? routeDestination.name : ''}
+                      onChange={(e) => {
+                        const zone = getUpdatedSafetyZones().find(z => z.name === e.target.value);
+                        if (zone) setRouteDestination(zone);
+                      }}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                    >
+                      <option value="">Select Destination</option>
+                      {getUpdatedSafetyZones().map(zone => (
+                        <option key={zone.id} value={zone.name}>{zone.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Analyze Button */}
+                  <div className="flex items-end">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={analyzeRouteSafety}
+                      className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all"
+                    >
+                      🔍 Analyze Route
+                    </motion.button>
+                  </div>
+                </div>
+                
+                {/* Route Results */}
+                {showRouteResults && routeAnalysis && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className={`rounded-xl p-6 border-2 ${
+                      routeAnalysis.safetyLevel === 'safe' ? 'bg-green-50 border-green-300' :
+                      routeAnalysis.safetyLevel === 'moderate' ? 'bg-yellow-50 border-yellow-300' :
+                      'bg-red-50 border-red-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-bold text-gray-900">
+                        {routeAnalysis.safetyLevel === 'safe' ? '✅ Safe Route' :
+                         routeAnalysis.safetyLevel === 'moderate' ? '⚠️ Moderate Risk Route' :
+                         '🚨 High Risk Route'}
+                      </h4>
+                      <div className={`text-3xl font-bold ${
+                        routeAnalysis.safetyScore >= 70 ? 'text-green-600' :
+                        routeAnalysis.safetyScore >= 40 ? 'text-yellow-600' :
+                        'text-red-600'
+                      }`}>
+                        {routeAnalysis.safetyScore}% Safety
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                      <div className="text-center p-3 bg-white rounded-lg shadow">
+                        <div className="text-2xl font-bold text-gray-900">{routeAnalysis.distance} km</div>
+                        <div className="text-xs text-gray-500">Distance</div>
+                      </div>
+                      <div className="text-center p-3 bg-white rounded-lg shadow">
+                        <div className="text-2xl font-bold text-gray-900">{routeAnalysis.totalZones}</div>
+                        <div className="text-xs text-gray-500">Total Areas</div>
+                      </div>
+                      <div className="text-center p-3 bg-green-50 rounded-lg shadow">
+                        <div className="text-2xl font-bold text-green-600">{routeAnalysis.safeZones}</div>
+                        <div className="text-xs text-green-600">🟢 Safe</div>
+                      </div>
+                      <div className="text-center p-3 bg-yellow-50 rounded-lg shadow">
+                        <div className="text-2xl font-bold text-yellow-600">{routeAnalysis.moderateZones}</div>
+                        <div className="text-xs text-yellow-600">🟡 Moderate</div>
+                      </div>
+                      <div className="text-center p-3 bg-red-50 rounded-lg shadow">
+                        <div className="text-2xl font-bold text-red-600">{routeAnalysis.riskyZones}</div>
+                        <div className="text-xs text-red-600">🔴 Risky</div>
+                      </div>
+                    </div>
+                    
+                    {/* Risky Zones Warning */}
+                    {routeAnalysis.riskyZoneList.length > 0 && (
+                      <div className="bg-red-100 border-2 border-red-300 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle className="h-5 w-5 text-red-600" />
+                          <h5 className="font-bold text-red-800">⚠️ Risky Areas on Route</h5>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {routeAnalysis.riskyZoneList.map(zone => (
+                            <div key={zone.id} className="text-sm text-red-700 flex items-center gap-2">
+                              <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                              {zone.name} - {zone.description}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Safety Tips */}
+                    <div className="mt-4 bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
+                      <h5 className="font-bold text-blue-800 mb-2">💡 Safety Tips for This Route:</h5>
+                      <ul className="text-sm text-blue-700 space-y-1">
+                        <li>• Share your live location with trusted contacts</li>
+                        <li>• Avoid traveling alone, especially at night</li>
+                        <li>• Keep emergency numbers on speed dial</li>
+                        {routeAnalysis.riskyZoneList.length > 0 && (
+                          <li>• Be extra cautious in the risky areas mentioned above</li>
+                        )}
+                        {routeAnalysis.safetyScore < 50 && (
+                          <li>• Consider alternative routes if possible</li>
+                        )}
+                      </ul>
+                    </div>
+                  </motion.div>
+                )}
+              </motion.div>
+            )}
+          
             {/* Search and Filter Bar */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -1264,7 +1803,71 @@ const PublicMap = () => {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
-                  
+
+                  {/* Route Line */}
+                  {showRouteLine && routePolyline && routePolyline.length === 2 && (
+                    <>
+                      {/* Route Line - Solid colored line showing the route */}
+                      <Polyline
+                        positions={routePolyline}
+                        color={routeAnalysis?.safetyLevel === 'safe' ? '#22c55e' : routeAnalysis?.safetyLevel === 'moderate' ? '#eab308' : '#ef4444'}
+                        weight={8}
+                        opacity={1}
+                        dashArray=""
+                        lineCap="round"
+                        lineJoin="round"
+                      />
+                      {/* Route Line - Dashed white overlay for direction effect */}
+                      <Polyline
+                        positions={routePolyline}
+                        color="white"
+                        weight={3}
+                        opacity={0.8}
+                        dashArray="15, 15"
+                        lineCap="round"
+                        lineJoin="round"
+                      />
+                      {/* Source Marker */}
+                      <Marker
+                        position={[routeSource.lat, routeSource.lng]}
+                        icon={L.divIcon({
+                          className: 'custom-div-icon',
+                          html: `<div style="
+                            background-color: #22c55e;
+                            width: 20px;
+                            height: 20px;
+                            border-radius: 50%;
+                            border: 3px solid white;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                          "></div>`,
+                          iconSize: [20, 20],
+                          iconAnchor: [10, 10]
+                        })}
+                      >
+                        <Popup>📍 Source: {routeSource.name}</Popup>
+                      </Marker>
+                      {/* Destination Marker */}
+                      <Marker
+                        position={[routeDestination.lat, routeDestination.lng]}
+                        icon={L.divIcon({
+                          className: 'custom-div-icon',
+                          html: `<div style="
+                            background-color: ${routeAnalysis?.safetyLevel === 'safe' ? '#22c55e' : routeAnalysis?.safetyLevel === 'moderate' ? '#eab308' : '#ef4444'};
+                            width: 20px;
+                            height: 20px;
+                            border-radius: 50%;
+                            border: 3px solid white;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                          "></div>`,
+                          iconSize: [20, 20],
+                          iconAnchor: [10, 10]
+                        })}
+                      >
+                        <Popup>🏁 Destination: {routeDestination.name}</Popup>
+                      </Marker>
+                    </>
+                  )}
+
                   {/* Safety Zone Markers with Header Alert */}
                   {filteredZones.map((zone) => (
                     <Marker
@@ -1272,16 +1875,25 @@ const PublicMap = () => {
                       position={[zone.lat, zone.lng]}
                       icon={createCustomIcon(zone.type)}
                       eventHandlers={{
-                        click: () => handleMapClick(zone),
+                        click: () => {
+                          handleMapClick(zone);
+                          // Also play siren on click for risky areas
+                          if (zone.type === 'caution') {
+                            playSiren();
+                          }
+                        },
                         mouseover: (e) => {
+                          console.log('🔍 India Map - Mouseover zone:', zone.name, 'type:', zone.type, 'audioInitialized:', audioInitialized);
                           // Show HEADER ALERT + play siren for risky areas in India map
                           if (zone.type === 'caution') {
                             setHeaderAlertMessage(`${zone.name} - ${zone.volunteers} volunteers, ${zone.incidents} incidents`);
                             setShowHeaderAlert(true);
+                            console.log('🔊 Playing siren for:', zone.name);
                             playSiren(); // Play siren sound
                           }
                         },
                         mouseout: () => {
+                          console.log('🔇 Mouseout - stopping siren');
                           // Hide header alert + stop siren on mouse out
                           setShowHeaderAlert(false);
                           stopSiren(); // Stop siren sound
@@ -1574,7 +2186,105 @@ const PublicMap = () => {
             transition={{ duration: 0.6, delay: 0.4 }}
             className="mt-16"
           >
-           
+          
+            <div className="mb-8">
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+                🏛️ Prayagraj (Allahabad) Local Safety Map
+              </h2>
+              <p className="text-gray-600">
+                Detailed safety zones for Prayagraj city - Safe, Moderate, and Risky areas including universities
+              </p>
+              
+              {/* Prayagraj Search Bar */}
+              <div className="mt-4 relative max-w-2xl">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={prayagrajSearchQuery}
+                    onChange={(e) => {
+                      setPrayagrajSearchQuery(e.target.value);
+                      searchPrayagrajArea(e.target.value);
+                    }}
+                    placeholder="Search Prayagraj areas... (e.g., Civil Lines, University, MNNIT, Zero Road, Sangam)"
+                    className="w-full pl-12 pr-4 py-3 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent shadow-lg"
+                  />
+                  {prayagrajSearchQuery && (
+                    <button
+                      onClick={() => {
+                        setPrayagrajSearchQuery('');
+                        setPrayagrajSearchResults([]);
+                        setShowPrayagrajSearch(false);
+                      }}
+                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
+                
+                {/* Search Results Dropdown */}
+                {showPrayagrajSearch && prayagrajSearchResults.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border-2 border-gray-100 max-h-96 overflow-y-auto z-[1000]"
+                  >
+                    <div className="p-2">
+                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        🔍 {prayagrajSearchResults.length} Result{prayagrajSearchResults.length !== 1 ? 's' : ''} Found
+                      </div>
+                      {prayagrajSearchResults.map((zone, index) => (
+                        <motion.button
+                          key={zone.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          onClick={() => navigateToPrayagrajLocation(zone)}
+                          className="w-full text-left p-3 hover:bg-gray-50 rounded-lg transition-colors flex items-center justify-between group"
+                        >
+                          <div className="flex items-center space-x-3 flex-1">
+                            <div className={`w-3 h-3 rounded-full ${
+                              zone.type === 'safe' ? 'bg-green-500' :
+                              zone.type === 'moderate' ? 'bg-yellow-500' : 'bg-red-500'
+                            }`} />
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900">{zone.name}</p>
+                              <p className="text-xs text-gray-500">{zone.area} • {zone.description}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              zone.type === 'safe' ? 'bg-green-100 text-green-700' :
+                              zone.type === 'moderate' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                              {getZoneTypeLabel(zone.type)}
+                            </span>
+                            <Navigation className="h-4 w-4 text-gray-400 group-hover:text-primary-600 transition-colors" />
+                          </div>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+                
+                {/* No Results */}
+                {showPrayagrajSearch && prayagrajSearchResults.length === 0 && prayagrajSearchQuery && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border-2 border-gray-100 p-4 z-[1000]"
+                  >
+                    <div className="text-center text-gray-500">
+                      <Search className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                      <p className="font-medium">No areas found</p>
+                      <p className="text-sm mt-1">Try searching for: Civil Lines, University, MNNIT, Zero Road, Sangam, Station</p>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            </div>
+
 
           {/* Prayagraj Map Filters */}
           <div className="flex gap-2 flex-wrap mb-6">
@@ -1605,6 +2315,167 @@ const PublicMap = () => {
               </motion.button>
             ))}
           </div>
+          
+          {/* Route Planner for Prayagraj */}
+          {showRoutePlanner && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-gradient-to-r from-green-50 via-blue-50 to-purple-50 rounded-2xl shadow-xl p-6 mb-6 border-2 border-green-200"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Navigation className="h-6 w-6 text-green-600" />
+                  🛣️ Route Safety Planner
+                </h3>
+                <button
+                  onClick={clearRoute}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                {/* Source Selection */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    📍 Source Location
+                  </label>
+                  <select
+                    value={routeSource ? routeSource.name : ''}
+                    onChange={(e) => {
+                      const zone = prayagrajZones.find(z => z.name === e.target.value);
+                      if (zone) setRouteSource(zone);
+                    }}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                  >
+                    <option value="">Select Source</option>
+                    {prayagrajZones.map(zone => (
+                      <option key={zone.id} value={zone.name}>{zone.name}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Destination Selection */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    🏁 Destination
+                  </label>
+                  <select
+                    value={routeDestination ? routeDestination.name : ''}
+                    onChange={(e) => {
+                      const zone = prayagrajZones.find(z => z.name === e.target.value);
+                      if (zone) setRouteDestination(zone);
+                    }}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                  >
+                    <option value="">Select Destination</option>
+                    {prayagrajZones.map(zone => (
+                      <option key={zone.id} value={zone.name}>{zone.name}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Analyze Button */}
+                <div className="flex items-end">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={analyzeRouteSafety}
+                    className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all"
+                  >
+                    🔍 Analyze Route
+                  </motion.button>
+                </div>
+              </div>
+              
+              {/* Route Results */}
+              {showRouteResults && routeAnalysis && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={`rounded-xl p-6 border-2 ${
+                    routeAnalysis.safetyLevel === 'safe' ? 'bg-green-50 border-green-300' :
+                    routeAnalysis.safetyLevel === 'moderate' ? 'bg-yellow-50 border-yellow-300' :
+                    'bg-red-50 border-red-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-bold text-gray-900">
+                      {routeAnalysis.safetyLevel === 'safe' ? '✅ Safe Route' :
+                       routeAnalysis.safetyLevel === 'moderate' ? '⚠️ Moderate Risk Route' :
+                       '🚨 High Risk Route'}
+                    </h4>
+                    <div className={`text-3xl font-bold ${
+                      routeAnalysis.safetyScore >= 70 ? 'text-green-600' :
+                      routeAnalysis.safetyScore >= 40 ? 'text-yellow-600' :
+                      'text-red-600'
+                    }`}>
+                      {routeAnalysis.safetyScore}% Safety
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                    <div className="text-center p-3 bg-white rounded-lg shadow">
+                      <div className="text-2xl font-bold text-gray-900">{routeAnalysis.distance} km</div>
+                      <div className="text-xs text-gray-500">Distance</div>
+                    </div>
+                    <div className="text-center p-3 bg-white rounded-lg shadow">
+                      <div className="text-2xl font-bold text-gray-900">{routeAnalysis.totalZones}</div>
+                      <div className="text-xs text-gray-500">Total Areas</div>
+                    </div>
+                    <div className="text-center p-3 bg-green-50 rounded-lg shadow">
+                      <div className="text-2xl font-bold text-green-600">{routeAnalysis.safeZones}</div>
+                      <div className="text-xs text-green-600">🟢 Safe</div>
+                    </div>
+                    <div className="text-center p-3 bg-yellow-50 rounded-lg shadow">
+                      <div className="text-2xl font-bold text-yellow-600">{routeAnalysis.moderateZones}</div>
+                      <div className="text-xs text-yellow-600">🟡 Moderate</div>
+                    </div>
+                    <div className="text-center p-3 bg-red-50 rounded-lg shadow">
+                      <div className="text-2xl font-bold text-red-600">{routeAnalysis.riskyZones}</div>
+                      <div className="text-xs text-red-600">🔴 Risky</div>
+                    </div>
+                  </div>
+                  
+                  {/* Risky Zones Warning */}
+                  {routeAnalysis.riskyZoneList.length > 0 && (
+                    <div className="bg-red-100 border-2 border-red-300 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle className="h-5 w-5 text-red-600" />
+                        <h5 className="font-bold text-red-800">⚠️ Risky Areas on Route</h5>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {routeAnalysis.riskyZoneList.map(zone => (
+                          <div key={zone.id} className="text-sm text-red-700 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                            {zone.name} - {zone.description}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Safety Tips */}
+                  <div className="mt-4 bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
+                    <h5 className="font-bold text-blue-800 mb-2">💡 Safety Tips for This Route:</h5>
+                    <ul className="text-sm text-blue-700 space-y-1">
+                      <li>• Share your live location with trusted contacts</li>
+                      <li>• Avoid traveling alone, especially at night</li>
+                      <li>• Keep emergency numbers on speed dial</li>
+                      {routeAnalysis.riskyZoneList.length > 0 && (
+                        <li>• Be extra cautious in the risky areas mentioned above</li>
+                      )}
+                      {routeAnalysis.safetyScore < 50 && (
+                        <li>• Consider alternative routes if possible</li>
+                      )}
+                    </ul>
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Prayagraj Map - Now takes 3 columns */}
@@ -1630,6 +2501,70 @@ const PublicMap = () => {
                       attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
+
+                    {/* Route Line */}
+                    {showRouteLine && routePolyline && routePolyline.length === 2 && (
+                      <>
+                        {/* Route Line - Solid colored line showing the route */}
+                        <Polyline
+                          positions={routePolyline}
+                          color={routeAnalysis?.safetyLevel === 'safe' ? '#22c55e' : routeAnalysis?.safetyLevel === 'moderate' ? '#eab308' : '#ef4444'}
+                          weight={8}
+                          opacity={1}
+                          dashArray=""
+                          lineCap="round"
+                          lineJoin="round"
+                        />
+                        {/* Route Line - Dashed white overlay for direction effect */}
+                        <Polyline
+                          positions={routePolyline}
+                          color="white"
+                          weight={3}
+                          opacity={0.8}
+                          dashArray="15, 15"
+                          lineCap="round"
+                          lineJoin="round"
+                        />
+                        {/* Source Marker */}
+                        <Marker
+                          position={[routeSource.lat, routeSource.lng]}
+                          icon={L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div style="
+                              background-color: #22c55e;
+                              width: 20px;
+                              height: 20px;
+                              border-radius: 50%;
+                              border: 3px solid white;
+                              box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                            "></div>`,
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10]
+                          })}
+                        >
+                          <Popup>📍 Source: {routeSource.name}</Popup>
+                        </Marker>
+                        {/* Destination Marker */}
+                        <Marker
+                          position={[routeDestination.lat, routeDestination.lng]}
+                          icon={L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div style="
+                              background-color: ${routeAnalysis?.safetyLevel === 'safe' ? '#22c55e' : routeAnalysis?.safetyLevel === 'moderate' ? '#eab308' : '#ef4444'};
+                              width: 20px;
+                              height: 20px;
+                              border-radius: 50%;
+                              border: 3px solid white;
+                              box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                            "></div>`,
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10]
+                          })}
+                        >
+                          <Popup>🏁 Destination: {routeDestination.name}</Popup>
+                        </Marker>
+                      </>
+                    )}
 
                     {/* Prayagraj Safety Zone Markers - Bubble Style with Hover Popup Alert */}
                     {filteredPrayagrajZones.map((zone) => {
