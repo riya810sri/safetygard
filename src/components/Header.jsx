@@ -92,16 +92,18 @@ const Header = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3">
             <motion.div
-              whileHover={{ rotate: 10, scale: 1.1 }}
+              whileHover={{ scale: 1.1 }}
               transition={{ type: 'spring', stiffness: 300 }}
+              className="relative"
             >
-              <Shield className={`h-10 w-10 md:h-12 md:w-12 transition-colors duration-300 ${
-                isScrolled ? 'text-primary-600' : 'text-white'
-              }`} />
+              <img
+                src="/ws png.png"
+                alt="Suraksha Logo"
+                className={`h-28 w-28 md:h-40 md:w-40 object-contain transition-all duration-300 ${
+                  isScrolled ? '' : 'drop-shadow-lg'
+                }`}
+              />
             </motion.div>
-            <span className={`text-3xl md:text-4xl font-bold transition-colors duration-300 ${
-              isScrolled ? 'text-primary-600' : 'text-white'
-            }`}>Suraksha</span>
           </Link>
 
           {/* Desktop Navigation */}

@@ -43,6 +43,17 @@ const Community = () => {
     { id: 8, name: 'Rahul Verma', company: 'Swiggy', rating: 4.95, trips: '7,890', badge: 'Gold', image: 'https://i.pravatar.cc/150?img=18', specialty: 'Night Delivery Expert', verified: true, years: 5 },
   ];
 
+  const studentVolunteers = [
+    { id: 1, name: 'Ananya Gupta', college: 'IIT Delhi', rating: 4.98, hoursVolunteered: 156, badge: 'Gold', image: 'https://i.pravatar.cc/150?img=5', specialty: 'Campus Safety Lead', verified: true, year: 3 },
+    { id: 2, name: 'Priya Menon', college: 'DU - LSR', rating: 4.95, hoursVolunteered: 203, badge: 'Platinum', image: 'https://i.pravatar.cc/150?img=9', specialty: 'Night Escort Volunteer', verified: true, year: 2 },
+    { id: 3, name: 'Sneha Reddy', college: 'IIIT Hyderabad', rating: 4.92, hoursVolunteered: 128, badge: 'Gold', image: 'https://i.pravatar.cc/150?img=10', specialty: 'Self-Defense Trainer', verified: true, year: 4 },
+    { id: 4, name: 'Kavya Nair', college: 'NIT Trichy', rating: 4.89, hoursVolunteered: 95, badge: 'Silver', image: 'https://i.pravatar.cc/150?img=20', specialty: 'First Aid Certified', verified: true, year: 2 },
+    { id: 5, name: 'Aditi Sharma', college: 'BITS Pilani', rating: 4.96, hoursVolunteered: 178, badge: 'Platinum', image: 'https://i.pravatar.cc/150?img=24', specialty: 'Mental Health Advocate', verified: true, year: 3 },
+    { id: 6, name: 'Riya Patel', college: 'VIT Vellore', rating: 4.91, hoursVolunteered: 142, badge: 'Gold', image: 'https://i.pravatar.cc/150?img=25', specialty: 'Awareness Campaign Lead', verified: true, year: 3 },
+    { id: 7, name: 'Ishita Singh', college: 'JNU', rating: 4.87, hoursVolunteered: 89, badge: 'Silver', image: 'https://i.pravatar.cc/150?img=26', specialty: 'Legal Aid Volunteer', verified: true, year: 4 },
+    { id: 8, name: 'Meera Iyer', college: 'Christ University', rating: 4.94, hoursVolunteered: 167, badge: 'Gold', image: 'https://i.pravatar.cc/150?img=28', specialty: 'Peer Counselor', verified: true, year: 2 },
+  ];
+
   const categories = [
     { id: 'all', label: 'All Posts' },
     { id: 'tips', label: 'Safety Tips' },
@@ -160,7 +171,7 @@ const Community = () => {
                     <CheckCircle className="w-4 h-4 text-blue-500 ml-1.5" />
                   )}
                 </h3>
-                
+
                 <div className="flex items-center space-x-2 mb-2">
                   <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                     rider.company === 'Uber' ? 'bg-black text-white' :
@@ -184,6 +195,94 @@ const Community = () => {
                   <div className="flex items-center space-x-1">
                     <Shield className="w-3 h-3 text-green-600" />
                     <span className="text-sm font-bold text-green-600">98%</span>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Student Volunteers Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mb-12"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
+                🎓 Student Volunteers
+              </h2>
+              <p className="text-gray-600 mt-1">Campus safety champions from top colleges across India</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {studentVolunteers.map((volunteer, index) => (
+              <motion.div
+                key={volunteer.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ y: -5, scale: 1.02 }}
+                className="bg-white rounded-2xl shadow-lg p-5 border-2 border-transparent hover:border-purple-200 transition-all cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="relative">
+                    <img
+                      src={volunteer.image}
+                      alt={volunteer.name}
+                      className="w-16 h-16 rounded-full object-cover border-3 border-purple-100"
+                    />
+                    <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow">
+                      {volunteer.badge === 'Platinum' && (
+                        <div className="w-6 h-6 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center">
+                          <Star className="w-3 h-3 text-white fill-white" />
+                        </div>
+                      )}
+                      {volunteer.badge === 'Gold' && (
+                        <div className="w-6 h-6 bg-gradient-to-br from-amber-300 to-amber-500 rounded-full flex items-center justify-center">
+                          <Star className="w-3 h-3 text-white fill-white" />
+                        </div>
+                      )}
+                      {volunteer.badge === 'Silver' && (
+                        <div className="w-6 h-6 bg-gradient-to-br from-gray-300 to-gray-500 rounded-full flex items-center justify-center">
+                          <Star className="w-3 h-3 text-white fill-white" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-1 bg-purple-50 px-2 py-1 rounded-full">
+                    <Star className="w-4 h-4 text-purple-500 fill-purple-500" />
+                    <span className="text-sm font-bold text-purple-700">{volunteer.rating}</span>
+                  </div>
+                </div>
+
+                <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center">
+                  {volunteer.name}
+                  {volunteer.verified && (
+                    <CheckCircle className="w-4 h-4 text-blue-500 ml-1.5" />
+                  )}
+                </h3>
+
+                <div className="flex items-center space-x-2 mb-2">
+                  <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">
+                    {volunteer.college}
+                  </span>
+                  <span className="text-xs text-gray-500">Year {volunteer.year}</span>
+                </div>
+
+                <p className="text-sm text-gray-600 mb-3">{volunteer.specialty}</p>
+
+                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                  <div className="flex items-center space-x-2">
+                    <Heart className="w-3 h-3 text-purple-600" />
+                    <span className="text-xs font-bold text-purple-700">{volunteer.hoursVolunteered} hrs</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Shield className="w-3 h-3 text-green-600" />
+                    <span className="text-sm font-bold text-green-600">Verified</span>
                   </div>
                 </div>
               </motion.div>

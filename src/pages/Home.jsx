@@ -113,7 +113,7 @@ const Home = () => {
   return (
     <main className="min-h-screen">
       {/* Hero Section - Enhanced */}
-      <section className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 pt-20 pb-24 overflow-hidden">
+      <section className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 pt-20 pb-32 overflow-hidden">
         {/* Hacker background image */}
         <div className="absolute inset-0 bg-[url('/back.jpg')] bg-cover bg-center opacity-70"></div>
         {/* Animated Background Pattern */}
@@ -179,18 +179,13 @@ const Home = () => {
               >
                 {/* Glow effect behind image */}
                 <div className="absolute inset-0 bg-white/20 blur-3xl rounded-full scale-75" />
-                <img
-                  src="/ws png.png"
-                  alt="Suraksha Safety"
-                  className="relative w-56 h-56 md:w-72 md:h-72 lg:w-80 lg:h-80 object-contain drop-shadow-2xl"
-                  style={{ willChange: 'transform' }}
-                />
+               
               </motion.div>
             </motion.div>
 
             {/* Text Content - All Right Aligned */}
             <motion.div
-              className="text-right max-w-4xl mx-2 -mt-8"
+              className="text-right max-w-4xl mx-2 mt-4"
               variants={containerVariants}
               initial="hidden"
               animate="visible"
@@ -198,7 +193,7 @@ const Home = () => {
               {/* Badge with sparkle */}
               <motion.div
                 variants={heroTextVariants}
-                className="inline-flex items-center space-x-2 bg-white/20 backdrop-blur-md px-5 py-2.5 rounded-full mb-3 border border-white/30 shadow-lg"
+                className="inline-flex items-center space-x-2 bg-white/20 backdrop-blur-md px-5 py-2.5 rounded-full mb-6 border border-white/30 shadow-lg"
               >
                 <Sparkles className="h-4 w-4 text-yellow-300" />
                 <span className="text-white font-semibold text-sm tracking-wide">#1 Safety App</span>
@@ -207,21 +202,25 @@ const Home = () => {
               {/* Main Heading - Enhanced typography */}
               <motion.h1
                 variants={heroTextVariants}
-                className="text-4xl md:text-5xl lg:text-6xl font-bold mb-3 leading-tight tracking-tight"
+                className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight tracking-tight"
               >
                 <span className="text-white drop-shadow-lg">
                   EMPOWER YOUR
                 </span>
                 <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-pink-200 to-purple-200 drop-shadow-lg">
-                  SAFETY APP AND DEVICE
+                  SAFETY APP
+                </span>
+                <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-pink-200 to-purple-200 drop-shadow-lg">
+                  AND DEVICE
                 </span>
               </motion.h1>
 
               {/* Subheading */}
               <motion.p
                 variants={heroTextVariants}
-                className="text-lg md:text-xl text-primary-100 mb-6 max-w-xl ml-auto leading-relaxed"
+                className="text-xl md:text-2xl text-primary-100 mb-10 max-w-xl ml-auto leading-relaxed"
               >
                 Experience real-time SOS alerts, GPS tracking, and community support, all at your fingertips.
               </motion.p>
