@@ -182,7 +182,7 @@ const GetDevice = () => {
       }));
 
       // 📱 Redirect to WhatsApp with order details
-      const sellerPhone = '919369508929'; // Seller's WhatsApp number
+      const sellerPhone = '7985042683'; // Seller's WhatsApp number
       
       // Create WhatsApp message with all order details
       const whatsappMessage = `🎉 *NEW ORDER RECEIVED!* 🎉
