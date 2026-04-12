@@ -39,6 +39,7 @@ const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [signupError, setSignupError] = useState('');
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
   const validateForm = () => {
     const newErrors = {};
@@ -104,40 +105,60 @@ const Signup = () => {
         emergencyContacts: [],
       });
 
+      console.log("✅ Firestore profile created");
+
       // Upload profile photo if selected (convert to base64)
       if (profilePhoto) {
-        const base64 = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(profilePhoto);
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = (error) => reject(error);
-        });
+        try {
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(profilePhoto);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = (error) => reject(error);
+          });
 
-        // Save base64 to Firestore
-        const userRef = doc(db, "users", userCredential.user.uid);
-        await updateDoc(userRef, {
-          photoURL: base64
-        });
+          // Save base64 to Firestore
+          const userRef = doc(db, "users", userCredential.user.uid);
+          await updateDoc(userRef, {
+            photoURL: base64,
+            updatedAt: new Date().toISOString()
+          });
+          console.log("✅ Profile photo uploaded");
+        } catch (photoError) {
+          console.error("⚠️ Profile photo upload failed (continuing signup):", photoError);
+          // Don't fail entire signup flow if photo upload fails
+        }
       }
 
       // 🎁 Auto-register a default device for the user
-      const defaultDeviceId = `SURAKSHA_${userCredential.user.uid.substring(0, 8).toUpperCase()}`;
-      const deviceRef = ref(database, `users/${userCredential.user.uid}/devices/${defaultDeviceId}`);
-      await set(deviceRef, {
-        deviceId: defaultDeviceId,
-        userId: userCredential.user.uid,
-        name: 'My Suraksha Device',
-        registeredAt: Date.now(),
-        lastSeen: Date.now(),
-        online: false
-      });
+      try {
+        const defaultDeviceId = `SURAKSHA_${userCredential.user.uid.substring(0, 8).toUpperCase()}`;
+        const deviceRef = ref(database, `users/${userCredential.user.uid}/devices/${defaultDeviceId}`);
+        await set(deviceRef, {
+          deviceId: defaultDeviceId,
+          userId: userCredential.user.uid,
+          name: 'My Suraksha Device',
+          registeredAt: Date.now(),
+          lastSeen: Date.now(),
+          online: false
+        });
 
-      console.log("Signup Successful ✅", userCredential.user);
-      console.log("✅ Default device registered:", defaultDeviceId);
+        console.log("✅ Default device registered:", defaultDeviceId);
+      } catch (deviceError) {
+        console.error("⚠️ Device registration failed (continuing signup):", deviceError);
+        // Don't fail entire signup flow if device registration fails
+      }
       
-      navigate('/dashboard');
+      console.log("✅ Navigation to dashboard...");
+      setShowSuccessPopup(true);
+      
+      // Navigate after showing popup for 2 seconds
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 2000);
     } catch (err) {
-      console.error("Signup Error:", err.code, err.message);
+      console.error("❌ Signup Error:", err.code, err.message);
+      console.error("Full error:", err);
       if (err.code === 'auth/email-already-in-use') {
         setSignupError("Email already registered. Please login instead.");
       } else if (err.code === 'auth/invalid-email') {
@@ -586,6 +607,95 @@ const Signup = () => {
           </p>
         </motion.div>
       </div>
+
+      {/* Success Popup Modal */}
+      {showSuccessPopup && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center relative overflow-hidden"
+          >
+            {/* Animated Background Circle */}
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="absolute top-0 left-1/2 transform -translate-x-1/2 w-64 h-64 bg-green-100 rounded-full opacity-50 -z-0"
+            />
+
+            {/* Content */}
+            <div className="relative z-10">
+              {/* Success Icon */}
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', delay: 0.2 }}
+                className="w-20 h-20 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg"
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.4, type: 'spring' }}
+                >
+                  <CheckCircle className="h-10 w-10 text-white" />
+                </motion.div>
+              </motion.div>
+
+              {/* Text */}
+              <motion.h2
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-2xl font-bold text-gray-900 mb-3"
+              >
+                Account Created! 🎉
+              </motion.h2>
+
+              <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="text-gray-600 mb-6"
+              >
+                Welcome to <span className="font-semibold text-primary-600">Suraksha</span>! 
+                Your account has been created successfully. Redirecting to dashboard...
+              </motion.p>
+
+              {/* Loading Bar */}
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: '100%' }}
+                transition={{ duration: 2, ease: 'easeInOut' }}
+                className="h-1 bg-gradient-to-r from-green-400 to-green-600 rounded-full mx-auto max-w-xs"
+              />
+
+              {/* User Info */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="mt-6 bg-gray-50 rounded-lg p-4"
+              >
+                <div className="flex items-center justify-center space-x-3">
+                  <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                    <User className="h-5 w-5 text-primary-600" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-gray-900">{formData.name}</p>
+                    <p className="text-xs text-gray-500">{formData.email}</p>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </main>
   );
 };
